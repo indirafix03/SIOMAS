@@ -17,6 +17,18 @@ import AnggotaHubDetail from './components/anggota/AnggotaHubDetail.jsx';
 import AnggotaFormPublikasi from './components/anggota/AnggotaFormPublikasi.jsx';
 import AnggotaProfile from './components/anggota/AnggotaProfile.jsx';
 
+// Pengurus Divisi Portal Components
+import PDLayout from './components/pengurusDivisi/PDLayout.jsx';
+import PDDashboard from './components/pengurusDivisi/PDDashboard.jsx';
+import PDDasbor from './components/pengurusDivisi/PDDasbor.jsx';
+import PDAgenda from './components/pengurusDivisi/PDAgenda.jsx';
+import PDVault from './components/pengurusDivisi/PDVault.jsx';
+import PDUnggahLPJ from './components/pengurusDivisi/PDUnggahLPJ.jsx';
+import PDHubInter from './components/pengurusDivisi/PDHubInter.jsx';
+import PDDetailKolaborasi from './components/pengurusDivisi/PDDetailKolaborasi.jsx';
+import PDDelegasi from './components/pengurusDivisi/PDDelegasi.jsx';
+import PDProfile from './components/pengurusDivisi/PDProfile.jsx';
+
 export default function App() {
   const portalViews = [
     'dashboard',
@@ -29,9 +41,22 @@ export default function App() {
     'profile'
   ];
 
+  const pdViews = [
+    'pd-dashboard',
+    'pd-dasbor',
+    'pd-agenda',
+    'pd-vault',
+    'pd-unggah-lpj',
+    'pd-hub-inter',
+    'pd-detail-kolaborasi',
+    'pd-delegasi',
+    'pd-profile',
+    'pd-detail-pengumuman'
+  ];
+
   const [currentView, setCurrentView] = useState(() => {
     const hash = window.location.hash.replace('#/', '');
-    if (['login', 'register', 'pending', 'unauthorized', ...portalViews].includes(hash)) {
+    if (['login', 'register', 'pending', 'unauthorized', ...portalViews, ...pdViews].includes(hash)) {
       return hash;
     }
     // Default to dashboard if token exists, otherwise login
@@ -94,7 +119,7 @@ export default function App() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#/', '');
-      if (['login', 'register', 'pending', 'unauthorized', ...portalViews].includes(hash)) {
+      if (['login', 'register', 'pending', 'unauthorized', ...portalViews, ...pdViews].includes(hash)) {
         setCurrentView(hash);
       }
     };
@@ -125,7 +150,14 @@ export default function App() {
     navigateTo('detail-kolaborasi');
   };
 
+  // Pengurus Divisi handlers
+  const handlePDSelectPost = (post) => {
+    setSelectedPost(post);
+    navigateTo('pd-detail-kolaborasi');
+  };
+
   const isPortalView = portalViews.includes(currentView);
+  const isPDView = pdViews.includes(currentView);
 
   return (
     <>
@@ -231,6 +263,82 @@ export default function App() {
             />
           )}
         </AnggotaLayout>
+      )}
+
+      {/* Pengurus Divisi Portal Views */}
+      {isPDView && (
+        <PDLayout
+          activeView={currentView}
+          onNavigate={navigateTo}
+          currentUser={{ ...currentUser, role: 'Pengurus Divisi' }}
+          onLogout={handleLogout}
+          unreadCount={2}
+        >
+          {currentView === 'pd-dashboard' && (
+            <PDDashboard
+              currentUser={currentUser}
+              onNavigate={navigateTo}
+              onSelectAnnouncement={(item) => {
+                setSelectedAnnouncement(item);
+                navigateTo('pd-detail-pengumuman');
+              }}
+            />
+          )}
+
+          {currentView === 'pd-dasbor' && (
+            <PDDasbor
+              onNavigate={navigateTo}
+              showToast={showToast}
+            />
+          )}
+
+          {currentView === 'pd-agenda' && (
+            <PDAgenda showToast={showToast} />
+          )}
+
+          {currentView === 'pd-vault' && (
+            <PDVault showToast={showToast} />
+          )}
+
+          {currentView === 'pd-unggah-lpj' && (
+            <PDUnggahLPJ showToast={showToast} />
+          )}
+
+          {currentView === 'pd-hub-inter' && (
+            <PDHubInter
+              onNavigate={navigateTo}
+              onSelectPost={handlePDSelectPost}
+              showToast={showToast}
+            />
+          )}
+
+          {currentView === 'pd-detail-kolaborasi' && (
+            <PDDetailKolaborasi
+              post={selectedPost}
+              onBack={() => navigateTo('pd-hub-inter')}
+              showToast={showToast}
+            />
+          )}
+
+          {currentView === 'pd-delegasi' && (
+            <PDDelegasi showToast={showToast} />
+          )}
+
+          {currentView === 'pd-profile' && (
+            <PDProfile
+              currentUser={currentUser}
+              showToast={showToast}
+            />
+          )}
+
+          {currentView === 'pd-detail-pengumuman' && (
+            <AnggotaAnnouncementDetail
+              announcement={selectedAnnouncement}
+              onBack={() => navigateTo('pd-dashboard')}
+              showToast={showToast}
+            />
+          )}
+        </PDLayout>
       )}
     </>
   );
