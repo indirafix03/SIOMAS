@@ -407,12 +407,32 @@ export default function KetuaHubInterUKM({ onNavigate, onSelectPost, showToast }
                           <Share2 size={14} /> Bagikan
                         </span>
                       </div>
-                      <button
-                        onClick={() => onSelectPost && onSelectPost(post)}
-                        style={{ background: 'none', border: '1.5px solid #E2E8F0', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: 'inherit' }}
-                      >
-                        Lihat Detail
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        {post.status === 'pending' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleRejectPost(post)}
+                              style={{ background: '#FEE2E2', color: '#DC2626', border: '1px solid #FECACA', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontSize: '12.5px', fontWeight: 700, fontFamily: 'inherit' }}
+                            >
+                              Tolak
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleApprovePost(post)}
+                              style={{ background: '#10B981', color: '#FFFFFF', border: 'none', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontSize: '12.5px', fontWeight: 700, fontFamily: 'inherit' }}
+                            >
+                              ✓ Setujui & Siarkan
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => onSelectPost && onSelectPost(post)}
+                          style={{ background: 'none', border: '1.5px solid #E2E8F0', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: 'inherit' }}
+                        >
+                          Lihat Detail
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

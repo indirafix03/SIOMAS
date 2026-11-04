@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, Shield, FileText } from 'lucide-react';
+import { Upload, Shield, FileText, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { lpjApi } from '../../services/api.js';
 
 export default function PDUnggahLPJ({ showToast }) {
@@ -15,6 +15,7 @@ export default function PDUnggahLPJ({ showToast }) {
   const [status, setStatus] = useState('Draf');
   const [submitting, setSubmitting] = useState(false);
   const [mySubmissions, setMySubmissions] = useState([]);
+  const [editingDocId, setEditingDocId] = useState(null);
   const fileInputRef = useRef(null);
 
   const loadMySubmissions = async () => {
@@ -53,6 +54,23 @@ export default function PDUnggahLPJ({ showToast }) {
     }
   };
 
+  const handlePrepareRevision = (doc) => {
+    const rawName = doc.nama_berkas || '';
+    const match = rawName.match(/^(.+?)\s*\((.+)\)$/);
+    const cleanTitle = match ? match[1].trim() : rawName;
+    const cleanDiv = match ? match[2].trim() : 'Divisi Acara';
+    setEditingDocId(doc.id);
+    setStatus('Revisi');
+    setForm((prev) => ({
+      ...prev,
+      judulLPJ: cleanTitle,
+      divisi: cleanDiv,
+      deskripsi: doc.catatan_revisi ? `Perbaikan atas catatan: ${doc.catatan_revisi}` : ''
+    }));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    showToast && showToast('Mode perbaikan aktif: silakan pilih berkas LPJ baru lalu klik Unggah Perbaikan LPJ.', 'info');
+  };
+
   const handleSubmit = async (isDraf = false) => {
     if (!form.judulLPJ.trim()) {
       showToast && showToast('Harap isi Judul LPJ terlebih dahulu.', 'warning');
@@ -65,7 +83,6 @@ export default function PDUnggahLPJ({ showToast }) {
         showToast && showToast('Harap pilih berkas LPJ (.pdf / .docx) terlebih dahulu.', 'warning');
         return;
       }
-      // Jika simpan sebagai draf tanpa memilih file fisik, buat file PDF draf otomatis
       const safeName = form.judulLPJ.trim().replace(/[^a-zA-Z0-9_-]/g, '_') || 'Draft_LPJ';
       uploadFile = new File(
         [`%PDF-1.4\n% Draft LPJ: ${form.judulLPJ}\nDivisi: ${form.divisi}\nDeskripsi: ${form.deskripsi}`],
@@ -76,17 +93,22 @@ export default function PDUnggahLPJ({ showToast }) {
 
     setSubmitting(true);
     const namaBerkas = `${form.judulLPJ.trim()} (${form.divisi})`;
-    const res = await lpjApi.uploadDraft(uploadFile, namaBerkas);
+    const res = editingDocId
+      ? await lpjApi.updateDraft(editingDocId, uploadFile, namaBerkas)
+      : await lpjApi.uploadDraft(uploadFile, namaBerkas);
     setSubmitting(false);
 
     if (res.ok) {
       setStatus(isDraf ? 'Draf' : 'Terkirim');
       showToast && showToast(
-        isDraf
+        editingDocId
+          ? `Perbaikan LPJ "${form.judulLPJ}" berhasil dikirim ulang ke Admin/Ketua!`
+          : isDraf
           ? `LPJ "${form.judulLPJ}" disimpan sebagai draf dan masuk ke sistem.`
           : `LPJ "${form.judulLPJ}" berhasil diunggah dan masuk ke antrean validasi Admin/Ketua!`,
         'success'
       );
+      setEditingDocId(null);
       setForm({
         judulLPJ: '',
         divisi: 'Divisi Acara',
@@ -102,6 +124,8 @@ export default function PDUnggahLPJ({ showToast }) {
     }
   };
 
+  const revisiDocs = mySubmissions.filter((d) => d.status === 'Revisi');
+
   return (
     <div>
       {/* Header */}
@@ -110,6 +134,65 @@ export default function PDUnggahLPJ({ showToast }) {
         <h1 className="page-title">Unggah Draf LPJ</h1>
         <p className="page-subtitle">Kirim laporan pertanggungjawaban divisi untuk proses validasi Ketua/Admin.</p>
       </div>
+
+      {/* Banner Peringatan Revisi dari Admin/Ketua jika ada LPJ berstatus Revisi */}
+      {revisiDocs.length > 0 && (
+        <div style={{
+          background: '#FEF2F2',
+          border: '1.5px solid #FECACA',
+          borderRadius: '14px',
+          padding: '16px 20px',
+          marginBottom: '24px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#DC2626', fontWeight: 800, fontSize: '13.5px' }}>
+            <AlertCircle size={18} />
+            <span>Terdapat {revisiDocs.length} Dokumen LPJ yang Memerlukan Revisi dari Admin / Ketua UKM:</span>
+          </div>
+          {revisiDocs.map((doc) => (
+            <div key={doc.id} style={{
+              background: '#FFFFFF',
+              border: '1px solid #FEE2E2',
+              borderRadius: '10px',
+              padding: '12px 16px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '12px',
+              flexWrap: 'wrap'
+            }}>
+              <div>
+                <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0F172A' }}>{doc.nama_berkas}</div>
+                <div style={{ fontSize: '13px', color: '#B91C1C', marginTop: '3px', fontWeight: 600 }}>
+                  Pesan Revisi ({doc.approver_name || 'Admin / Ketua UKM'}): &ldquo;{doc.catatan_revisi || 'Mohon perbaiki sesuai pedoman administrasi.'}&rdquo;
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handlePrepareRevision(doc)}
+                style={{
+                  background: '#DC2626',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '8px 14px',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <RefreshCw size={14} /> Perbaiki &amp; Unggah Ulang
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Two-column layout */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '24px', alignItems: 'start' }}>
@@ -233,7 +316,7 @@ export default function PDUnggahLPJ({ showToast }) {
                 disabled={submitting}
                 onClick={() => handleSubmit(false)}
               >
-                <Upload size={15} style={{ marginRight: '6px' }} /> {submitting ? 'Mengunggah...' : 'Unggah LPJ'}
+                <Upload size={15} style={{ marginRight: '6px' }} /> {submitting ? 'Mengunggah...' : editingDocId ? 'Unggah Perbaikan LPJ' : 'Unggah LPJ'}
               </button>
             </div>
           </div>
@@ -241,32 +324,87 @@ export default function PDUnggahLPJ({ showToast }) {
           {/* Riwayat LPJ yang Diunggah */}
           <div className="portal-card" style={{ padding: '24px' }}>
             <h3 className="portal-card-title" style={{ marginBottom: '4px' }}>Riwayat Pengajuan LPJ Saya</h3>
-            <p className="portal-card-subtitle" style={{ marginBottom: '16px' }}>Status validasi langsung dari Admin / Ketua UKM.</p>
+            <p className="portal-card-subtitle" style={{ marginBottom: '16px' }}>Status validasi dan catatan langsung dari Admin / Ketua UKM.</p>
 
             {mySubmissions.length === 0 ? (
               <div style={{ padding: '24px', textAlign: 'center', color: '#94A3B8', fontSize: '13px', background: '#F8FAFC', borderRadius: '10px' }}>
                 Belum ada LPJ yang diunggah.
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {mySubmissions.map((doc) => (
-                  <div key={doc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', border: '1px solid #F1F5F9', borderRadius: '10px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ width: '36px', height: '36px', background: '#EEF2FF', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4F46E5' }}>
-                        <FileText size={18} />
+                  <div
+                    key={doc.id}
+                    style={{
+                      padding: '14px 16px',
+                      border: `1.5px solid ${doc.status === 'Revisi' ? '#FECACA' : doc.status === 'Approved' ? '#BBF7D0' : '#F1F5F9'}`,
+                      background: doc.status === 'Revisi' ? '#FFFBFB' : '#FFFFFF',
+                      borderRadius: '12px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{
+                          width: '36px', height: '36px',
+                          background: doc.status === 'Revisi' ? '#FEE2E2' : '#EEF2FF',
+                          borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          color: doc.status === 'Revisi' ? '#DC2626' : '#4F46E5'
+                        }}>
+                          <FileText size={18} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0F172A' }}>{doc.nama_berkas}</div>
+                          <div style={{ fontSize: '12px', color: '#64748B' }}>Pengunggah: {doc.uploader_name || 'Pengurus'}</div>
+                        </div>
                       </div>
-                      <div>
-                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0F172A' }}>{doc.nama_berkas}</div>
-                        <div style={{ fontSize: '12px', color: '#64748B' }}>Pengunggah: {doc.uploader_name || 'Pengurus'}</div>
-                      </div>
+                      <span style={{
+                        fontSize: '12px', fontWeight: 700, padding: '4px 12px', borderRadius: '999px',
+                        background: doc.status === 'Approved' ? '#DCFCE7' : doc.status === 'Revisi' ? '#FEE2E2' : '#FEF3C7',
+                        color: doc.status === 'Approved' ? '#15803D' : doc.status === 'Revisi' ? '#B91C1C' : '#D97706'
+                      }}>
+                        {doc.status === 'Draft' ? 'Menunggu Validasi' : doc.status === 'Revisi' ? 'Perlu Revisi' : 'Valid / Disetujui'}
+                      </span>
                     </div>
-                    <span style={{
-                      fontSize: '12px', fontWeight: 700, padding: '4px 12px', borderRadius: '999px',
-                      background: doc.status === 'Approved' ? '#DCFCE7' : doc.status === 'Revisi' ? '#FEE2E2' : '#FEF3C7',
-                      color: doc.status === 'Approved' ? '#15803D' : doc.status === 'Revisi' ? '#B91C1C' : '#D97706'
-                    }}>
-                      {doc.status === 'Draft' ? 'Menunggu Validasi' : doc.status}
-                    </span>
+
+                    {/* Kotak Catatan Revisi / Persetujuan dari Admin */}
+                    {doc.status === 'Revisi' && (
+                      <div style={{
+                        marginTop: '10px',
+                        padding: '10px 12px',
+                        background: '#FEF2F2',
+                        border: '1px solid #FECACA',
+                        borderRadius: '8px',
+                        fontSize: '12.5px',
+                        color: '#991B1B',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '8px'
+                      }}>
+                        <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '1px', color: '#DC2626' }} />
+                        <div>
+                          <strong>Catatan Revisi dari {doc.approver_name || 'Admin / Ketua UKM'}:</strong>
+                          <div style={{ marginTop: '2px' }}>{doc.catatan_revisi || 'Mohon perbaiki dokumen sesuai pedoman administrasi.'}</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {doc.status === 'Approved' && doc.catatan_revisi && (
+                      <div style={{
+                        marginTop: '10px',
+                        padding: '8px 12px',
+                        background: '#F0FDF4',
+                        border: '1px solid #BBF7D0',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                        color: '#166534',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <CheckCircle2 size={14} style={{ flexShrink: 0, color: '#16A34A' }} />
+                        <span><strong>Catatan Validator ({doc.approver_name || 'Admin'}):</strong> {doc.catatan_revisi}</span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

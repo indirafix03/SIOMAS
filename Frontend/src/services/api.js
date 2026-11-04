@@ -185,6 +185,13 @@ export const documentsApi = {
     });
   },
 
+  updateCategory: async (id, kategori, namaBerkas) => {
+    return apiFetch(`/documents/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ kategori, nama_berkas: namaBerkas })
+    });
+  },
+
   delete: async (id) => {
     return apiFetch(`/documents/${id}`, {
       method: 'DELETE'
@@ -222,6 +229,16 @@ export const lpjApi = {
     formData.append('nama_berkas', namaBerkas);
     return apiFetch('/lpj/upload', {
       method: 'POST',
+      body: formData
+    });
+  },
+
+  updateDraft: async (documentId, file, namaBerkas) => {
+    const formData = new FormData();
+    if (file) formData.append('file', file);
+    if (namaBerkas) formData.append('nama_berkas', namaBerkas);
+    return apiFetch(`/lpj/${documentId}`, {
+      method: 'PUT',
       body: formData
     });
   },

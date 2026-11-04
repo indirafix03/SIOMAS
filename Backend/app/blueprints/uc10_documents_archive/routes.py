@@ -207,6 +207,33 @@ def upload_general_document():
     )
 
 
+@documents_archive_bp.route('/<int:document_id>', methods=['PUT'])
+@permission_required('unggah_dokumen')
+def update_document_category(document_id):
+    """Perbarui nama atau kategori (label) dokumen."""
+    doc = db.session.get(Document, document_id)
+    if not doc or doc.Is_Deleted:
+        return error_response("Dokumen tidak ditemukan", 404)
+
+    data = request.get_json(silent=True) or {}
+    kategori = (data.get('kategori') or '').strip()
+    nama_berkas = (data.get('nama_berkas') or '').strip()
+
+    if kategori:
+        if kategori not in ('LPJ', 'Proposal', 'Sipakamase', 'Surat'):
+            return error_response("Kategori tidak valid", 400)
+        doc.Kategori = kategori
+        if kategori == 'Sipakamase' and doc.Status == 'Approved':
+            doc.Status = 'Draft'
+
+    if nama_berkas:
+        doc.Nama_Berkas = nama_berkas
+
+    db.session.commit()
+    log_audit("UPDATE_DOCUMENT", "Arsip Dokumen", f"Dokumen ID {doc.ID} diperbarui ke kategori '{doc.Kategori}'")
+    return success_response(data=doc.to_dict(), message="Kategorisasi dokumen berhasil diperbarui")
+
+
 @documents_archive_bp.route('/<int:document_id>', methods=['DELETE'])
 @permission_required('setujui_dokumen')
 def delete_document(document_id):

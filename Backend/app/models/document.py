@@ -16,12 +16,31 @@ class Document(db.Model):
     approver = db.relationship('User', foreign_keys=[Approved_By], backref='approved_documents')
 
     def to_dict(self):
+        catatan_revisi = None
+        if self.Status in ('Revisi', 'Approved'):
+            try:
+                from app.models.audit_log import AuditLog
+                latest_log = (
+                    AuditLog.query
+                    .filter(
+                        AuditLog.Aksi.in_(['VALIDATE_LPJ', 'VERIFY_SIPAKAMASE']),
+                        AuditLog.Detail.ilike(f"%'{self.Nama_Berkas}'%")
+                    )
+                    .order_by(AuditLog.ID.desc())
+                    .first()
+                )
+                if latest_log and latest_log.Detail and 'Catatan:' in latest_log.Detail:
+                    catatan_revisi = latest_log.Detail.split('Catatan:', 1)[1].strip()
+            except Exception:
+                catatan_revisi = None
+
         return {
             'id': self.ID,
             'nama_berkas': self.Nama_Berkas,
             'kategori': self.Kategori,
             'path_file': self.Path_File,
             'status': self.Status,
+            'catatan_revisi': catatan_revisi,
             'is_deleted': bool(self.Is_Deleted),
             'uploaded_by': self.Uploaded_By,
             'uploader_name': self.uploader.Nama if self.uploader else None,

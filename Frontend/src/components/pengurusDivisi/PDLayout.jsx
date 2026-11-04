@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutGrid,
   BarChart2,
@@ -12,6 +12,7 @@ import {
   Bell,
   ChevronRight
 } from 'lucide-react';
+import { lpjApi } from '../../services/api.js';
 
 export default function PDLayout({
   activeView,
@@ -21,6 +22,19 @@ export default function PDLayout({
   children,
   unreadCount = 0
 }) {
+  const [revisiCount, setRevisiCount] = useState(0);
+
+  useEffect(() => {
+    const loadRevisiCount = async () => {
+      const res = await lpjApi.getMySubmissions();
+      if (res.ok && res.data?.data) {
+        const rev = res.data.data.filter((d) => d.status === 'Revisi').length;
+        setRevisiCount(rev);
+      }
+    };
+    loadRevisiCount();
+  }, [activeView]);
+
   const breadcrumbMap = {
     'pd-dashboard': 'Beranda',
     'pd-dasbor': 'Dasbor Koordinator',
@@ -49,7 +63,7 @@ export default function PDLayout({
     { key: 'pd-dasbor', label: 'Dasbor Koordinator', icon: BarChart2 },
     { key: 'pd-agenda', label: 'Kalender Agenda', icon: Calendar },
     { key: 'pd-vault', label: 'Vault LPJ & Dokumen', icon: FolderArchive },
-    { key: 'pd-unggah-lpj', label: 'Unggah LPJ', icon: Upload },
+    { key: 'pd-unggah-lpj', label: 'Unggah LPJ', icon: Upload, badge: revisiCount },
     { key: 'pd-hub-inter', label: 'Hub Inter-UKM', icon: Users },
     { key: 'pd-delegasi', label: 'Delegasi & Presensi', icon: CheckSquare }
   ];
@@ -92,6 +106,24 @@ export default function PDLayout({
                   >
                     <Icon size={18} />
                     <span>{item.label}</span>
+                    {item.badge > 0 && (
+                      <span style={{
+                        marginLeft: 'auto',
+                        background: '#EF4444',
+                        color: '#fff',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        borderRadius: '999px',
+                        minWidth: '20px',
+                        height: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '0 5px'
+                      }}>
+                        {item.badge}
+                      </span>
+                    )}
                   </button>
                 </li>
               );

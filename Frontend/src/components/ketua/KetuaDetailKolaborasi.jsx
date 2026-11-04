@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
-import { ChevronLeft, Calendar, MapPin, FileText, Eye, Sparkles } from 'lucide-react';
+import { ChevronLeft, Calendar, MapPin, FileText, Eye, Sparkles, CheckCircle2, XCircle } from 'lucide-react';
+import { interUkmApi } from '../../services/api.js';
 
-export default function KetuaDetailKolaborasi({ post, onBack, showToast }) {
+export default function KetuaDetailKolaborasi({ post, onBack, onStatusChange, showToast }) {
   const [imgError, setImgError] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [localStatus, setLocalStatus] = useState(post?.status || 'approved');
 
   const data = post || {
     id: 1,
@@ -11,7 +14,7 @@ export default function KetuaDetailKolaborasi({ post, onBack, showToast }) {
     orgColor: '#4F46E5',
     judul: 'Publikasi Kolaborasi UKM',
     desc: '-',
-    status: 'Published',
+    status: 'approved',
     img: '',
     konten: 'Publikasi Kolaborasi UKM',
     detail: '-',
@@ -25,6 +28,7 @@ export default function KetuaDetailKolaborasi({ post, onBack, showToast }) {
     followers: 'Aktif'
   };
 
+  const isPending = localStatus === 'pending';
   const bannerSrc = data.bannerImage || data.image || data.img || '';
   const contactInitials = (data.contactName || 'UK')
     .replace(/[^a-zA-Z0-9\s]/g, ' ')
@@ -44,12 +48,109 @@ export default function KetuaDetailKolaborasi({ post, onBack, showToast }) {
     }
   };
 
+  const handleApprove = async () => {
+    setProcessing(true);
+    const res = await interUkmApi.approve(data.id);
+    setProcessing(false);
+    if (res.ok) {
+      setLocalStatus('approved');
+      showToast && showToast(`Publikasi "${data.judul}" berhasil disetujui dan disiarkan!`, 'success');
+      onStatusChange && onStatusChange('approved');
+    } else {
+      showToast && showToast(res.data?.message || 'Gagal menyetujui publikasi.', 'error');
+    }
+  };
+
+  const handleReject = async () => {
+    setProcessing(true);
+    const res = await interUkmApi.reject(data.id, 'Ditolak oleh Ketua UKM');
+    setProcessing(false);
+    if (res.ok) {
+      setLocalStatus('rejected');
+      showToast && showToast(`Publikasi "${data.judul}" telah ditolak.`, 'info');
+      onStatusChange && onStatusChange('rejected');
+      onBack && onBack();
+    } else {
+      showToast && showToast(res.data?.message || 'Gagal menolak publikasi.', 'error');
+    }
+  };
+
   return (
     <div>
       {/* Back */}
       <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', color: '#4F46E5', fontSize: '14px', fontWeight: 600, fontFamily: 'inherit', marginBottom: '16px' }}>
         <ChevronLeft size={16} /> Kembali ke Hub Inter-UKM
       </button>
+
+      {/* Banner Verifikasi jika masih Pending */}
+      {isPending && (
+        <div style={{
+          background: '#FFFBEB',
+          border: '1.5px solid #FCD34D',
+          borderRadius: '14px',
+          padding: '16px 20px',
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '16px',
+          flexWrap: 'wrap'
+        }}>
+          <div>
+            <div style={{ fontSize: '12px', fontWeight: 800, color: '#D97706', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              MENUNGGU VERIFIKASI KETUA UKM (BR-02)
+            </div>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: '#0F172A', marginTop: '2px' }}>
+              Publikasi ini diajukan oleh <strong>{data.contactName}</strong> ({data.org}) dan belum tayang di feed publik.
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <button
+              type="button"
+              disabled={processing}
+              onClick={handleReject}
+              style={{
+                background: '#EF4444',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '10px',
+                padding: '10px 18px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <XCircle size={16} /> Tolak Publikasi
+            </button>
+            <button
+              type="button"
+              disabled={processing}
+              onClick={handleApprove}
+              style={{
+                background: '#10B981',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '10px',
+                padding: '10px 18px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
+              }}
+            >
+              <CheckCircle2 size={16} /> ✓ Setujui & Siarkan
+            </button>
+          </div>
+        </div>
+      )}
 
       <div style={{ marginBottom: '20px' }}>
         <span style={{ fontSize: '12px', fontWeight: 700, color: '#4F46E5', letterSpacing: '0.06em', textTransform: 'uppercase' }}>KOLABORASI INTER-UKM</span>
@@ -71,8 +172,8 @@ export default function KetuaDetailKolaborasi({ post, onBack, showToast }) {
                 <div style={{ fontSize: '12px', color: '#94A3B8' }}>Organisasi mahasiswa kampus</div>
               </div>
             </div>
-            <span style={{ background: data.status === 'pending' ? '#FEF3C7' : '#ECFDF5', color: data.status === 'pending' ? '#D97706' : '#059669', fontSize: '12px', fontWeight: 700, padding: '4px 12px', borderRadius: '8px' }}>
-              {data.status === 'pending' ? 'Menunggu Verifikasi' : 'Published'}
+            <span style={{ background: isPending ? '#FEF3C7' : '#ECFDF5', color: isPending ? '#D97706' : '#059669', fontSize: '12px', fontWeight: 700, padding: '4px 12px', borderRadius: '8px' }}>
+              {isPending ? 'Menunggu Verifikasi' : 'Published'}
             </span>
           </div>
 
@@ -150,21 +251,62 @@ export default function KetuaDetailKolaborasi({ post, onBack, showToast }) {
           </div>
         </div>
 
-        {/* Sidebar: Contact Person */}
-        <div className="portal-card" style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '16px' }}>CONTACT PERSON</div>
-          <div style={{ width: '60px', height: '60px', background: '#EEF2FF', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px', fontSize: '20px', fontWeight: 700, color: '#4F46E5' }}>
-            {contactInitials}
-          </div>
-          <div style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>{data.contactName}</div>
-          <div style={{ fontSize: '12.5px', color: '#64748B', marginBottom: '16px' }}>{data.contactRole}</div>
+        {/* Sidebar: Contact Person + Tindakan Verifikasi */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="portal-card" style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '16px' }}>CONTACT PERSON</div>
+            <div style={{ width: '60px', height: '60px', background: '#EEF2FF', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px', fontSize: '20px', fontWeight: 700, color: '#4F46E5' }}>
+              {contactInitials}
+            </div>
+            <div style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>{data.contactName}</div>
+            <div style={{ fontSize: '12.5px', color: '#64748B', marginBottom: '16px' }}>{data.contactRole}</div>
 
-          <button className="btn-primary" style={{ marginBottom: '10px' }} onClick={() => showToast && showToast('Menghubungi narahubung...', 'success')}>
-            Hubungi Narahubung
-          </button>
-          <button className="btn-secondary" onClick={() => showToast && showToast('Ketertarikan dicatat!', 'success')}>
-            Nyatakan Ketertarikan
-          </button>
+            <button className="btn-primary" style={{ marginBottom: '10px' }} onClick={() => showToast && showToast(`Menghubungi ${data.contactName} (${data.contactWa || '-'})`, 'success')}>
+              Hubungi Narahubung
+            </button>
+            <button className="btn-secondary" onClick={() => showToast && showToast('Ketertarikan dicatat!', 'success')}>
+              Nyatakan Ketertarikan
+            </button>
+          </div>
+
+          {isPending && (
+            <div className="portal-card" style={{ border: '1.5px solid #FCD34D', background: '#FFFBEB' }}>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: '#D97706', marginBottom: '8px', textTransform: 'uppercase' }}>
+                Tindakan Ketua UKM
+              </div>
+              <p style={{ fontSize: '12.5px', color: '#92400E', marginBottom: '14px', lineHeight: 1.5 }}>
+                Setujui publikasi ini agar langsung tayang di Hub Inter-UKM seluruh anggota.
+              </p>
+              <button
+                type="button"
+                disabled={processing}
+                onClick={handleApprove}
+                className="btn-primary"
+                style={{ background: '#10B981', marginBottom: '8px', width: '100%' }}
+              >
+                ✓ Setujui & Siarkan
+              </button>
+              <button
+                type="button"
+                disabled={processing}
+                onClick={handleReject}
+                style={{
+                  width: '100%',
+                  background: '#EF4444',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '10px',
+                  padding: '10px',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit'
+                }}
+              >
+                Tolak Publikasi
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -102,8 +102,8 @@ function ModalAturLabel({ document, onClose, onSave }) {
 }
 
 // Modal Unggah Dokumen
-function ModalUnggahDokumen({ onClose, onUploaded, showToast }) {
-  const [form, setForm] = useState({ nama: '', divisi: 'Divisi Acara', label: 'Proposal', file: null, fileName: '' });
+function ModalUnggahDokumen({ initialLabel = 'Sipakamase', onClose, onUploaded, showToast }) {
+  const [form, setForm] = useState({ nama: '', divisi: 'Divisi Acara', label: initialLabel, file: null, fileName: '' });
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -234,7 +234,9 @@ export default function PDVault({ showToast }) {
         diperbarui: 'Terbaru',
         ukuran: 'PDF',
         status: d.status,
-        statusType: d.status === 'Approved' ? 'green' : 'orange',
+        catatanRevisi: d.catatan_revisi || '',
+        approverName: d.approver_name || 'Admin / Ketua UKM',
+        statusType: d.status === 'Approved' ? 'green' : d.status === 'Revisi' ? 'red' : 'orange',
         tags: [d.kategori]
       }));
       setDocuments(mapped);
@@ -255,10 +257,15 @@ export default function PDVault({ showToast }) {
     return matchesCategory && matchesSearch;
   });
 
-  const handleSaveCategory = (updatedDoc) => {
-    setDocuments(documents.map((d) => (d.id === updatedDoc.id ? updatedDoc : d)));
-    setEditingDoc(null);
-    showToast(`Kategorisasi "${updatedDoc.nama}" berhasil diperbarui.`, 'success');
+  const handleSaveCategory = async (updatedDoc) => {
+    const res = await documentsApi.updateCategory(updatedDoc.id, updatedDoc.label, updatedDoc.nama);
+    if (res.ok) {
+      await loadDocuments();
+      setEditingDoc(null);
+      showToast(`Kategorisasi "${updatedDoc.nama}" berhasil diperbarui ke ${updatedDoc.label}.`, 'success');
+    } else {
+      showToast(res.data?.message || 'Gagal memperbarui kategori dokumen.', 'error');
+    }
   };
 
   const handleDownload = async (doc) => {
@@ -339,6 +346,21 @@ export default function PDVault({ showToast }) {
                       <div>
                         <div className="doc-title-text">{doc.nama}</div>
                         <div className="doc-sub-text">Dokumen Organisasi</div>
+                        {doc.status === 'Revisi' && (
+                          <div style={{
+                            marginTop: '4px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            color: '#DC2626',
+                            background: '#FEF2F2',
+                            border: '1px solid #FECACA',
+                            borderRadius: '6px',
+                            padding: '4px 8px',
+                            display: 'inline-block'
+                          }}>
+                            ⚠️ Revisi ({doc.approverName}): {doc.catatanRevisi || 'Mohon perbaiki sesuai pedoman.'}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>
