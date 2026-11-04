@@ -1,44 +1,104 @@
-import React, { useState } from 'react';
-import { Upload, ChevronDown, Shield } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Upload, Shield, FileText } from 'lucide-react';
+import { lpjApi } from '../../services/api.js';
 
 export default function PDUnggahLPJ({ showToast }) {
   const [form, setForm] = useState({
     judulLPJ: '',
     divisi: 'Divisi Acara',
     deskripsi: '',
+    file: null,
     fileName: '',
     fileSize: ''
   });
   const [isDragging, setIsDragging] = useState(false);
   const [status, setStatus] = useState('Draf');
+  const [submitting, setSubmitting] = useState(false);
+  const [mySubmissions, setMySubmissions] = useState([]);
+  const fileInputRef = useRef(null);
 
-  const handleFileSelect = () => {
-    setForm({ ...form, fileName: 'LPJ_SIOMAS_Fest_2024.pdf', fileSize: '12.6 MB' });
-    showToast('Berkas berhasil dipilih. Uji validasi berkas...', 'info');
-    setTimeout(() => showToast('Berkas lolos validasi format dan ukuran.', 'success'), 1200);
+  const loadMySubmissions = async () => {
+    const res = await lpjApi.getMySubmissions();
+    if (res.ok && res.data?.data) {
+      setMySubmissions(res.data.data);
+    }
+  };
+
+  useEffect(() => {
+    loadMySubmissions();
+  }, []);
+
+  const formatBytes = (bytes) => {
+    if (!bytes) return '0 KB';
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  const handleFileChosen = (chosenFile) => {
+    if (!chosenFile) return;
+    setForm((prev) => ({
+      ...prev,
+      file: chosenFile,
+      fileName: chosenFile.name,
+      fileSize: formatBytes(chosenFile.size)
+    }));
+    showToast && showToast(`Berkas "${chosenFile.name}" berhasil dipilih.`, 'success');
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
-    handleFileSelect();
+    if (e.dataTransfer?.files?.[0]) {
+      handleFileChosen(e.dataTransfer.files[0]);
+    }
   };
 
-  const handleSubmit = (isDraf = false) => {
+  const handleSubmit = async (isDraf = false) => {
     if (!form.judulLPJ.trim()) {
-      showToast('Harap isi Judul LPJ terlebih dahulu.', 'warning');
+      showToast && showToast('Harap isi Judul LPJ terlebih dahulu.', 'warning');
       return;
     }
-    if (isDraf) {
-      setStatus('Draf');
-      showToast(`LPJ "${form.judulLPJ}" disimpan sebagai draf.`, 'success');
-    } else {
-      if (!form.fileName) {
-        showToast('Harap lampirkan berkas LPJ sebelum mengunggah.', 'warning');
+
+    let uploadFile = form.file;
+    if (!uploadFile) {
+      if (!isDraf) {
+        showToast && showToast('Harap pilih berkas LPJ (.pdf / .docx) terlebih dahulu.', 'warning');
         return;
       }
-      setStatus('Terkirim');
-      showToast(`LPJ "${form.judulLPJ}" berhasil diunggah dan sedang dalam proses validasi admin.`, 'success');
+      // Jika simpan sebagai draf tanpa memilih file fisik, buat file PDF draf otomatis
+      const safeName = form.judulLPJ.trim().replace(/[^a-zA-Z0-9_-]/g, '_') || 'Draft_LPJ';
+      uploadFile = new File(
+        [`%PDF-1.4\n% Draft LPJ: ${form.judulLPJ}\nDivisi: ${form.divisi}\nDeskripsi: ${form.deskripsi}`],
+        `${safeName}.pdf`,
+        { type: 'application/pdf' }
+      );
+    }
+
+    setSubmitting(true);
+    const namaBerkas = `${form.judulLPJ.trim()} (${form.divisi})`;
+    const res = await lpjApi.uploadDraft(uploadFile, namaBerkas);
+    setSubmitting(false);
+
+    if (res.ok) {
+      setStatus(isDraf ? 'Draf' : 'Terkirim');
+      showToast && showToast(
+        isDraf
+          ? `LPJ "${form.judulLPJ}" disimpan sebagai draf dan masuk ke sistem.`
+          : `LPJ "${form.judulLPJ}" berhasil diunggah dan masuk ke antrean validasi Admin/Ketua!`,
+        'success'
+      );
+      setForm({
+        judulLPJ: '',
+        divisi: 'Divisi Acara',
+        deskripsi: '',
+        file: null,
+        fileName: '',
+        fileSize: ''
+      });
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      loadMySubmissions();
+    } else {
+      showToast && showToast(res.data?.message || 'Gagal mengunggah LPJ.', 'error');
     }
   };
 
@@ -48,128 +108,169 @@ export default function PDUnggahLPJ({ showToast }) {
       <div className="page-header-block">
         <span className="page-category-tag">MODUL KOORDINATOR</span>
         <h1 className="page-title">Unggah Draf LPJ</h1>
-        <p className="page-subtitle">Kirim laporan pertanggungjawaban divisi untuk proses validasi.</p>
+        <p className="page-subtitle">Kirim laporan pertanggungjawaban divisi untuk proses validasi Ketua/Admin.</p>
       </div>
 
       {/* Two-column layout */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '24px', alignItems: 'start' }}>
         {/* Left: Main Form */}
-        <div className="portal-card" style={{ padding: '28px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <div>
-              <h3 className="portal-card-title">Informasi Dokumen</h3>
-              <p className="portal-card-subtitle">Pastikan detail dokumen sudah sesuai.</p>
+        <div>
+          <div className="portal-card" style={{ padding: '28px', marginBottom: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h3 className="portal-card-title">Informasi Dokumen</h3>
+                <p className="portal-card-subtitle">Pastikan detail dokumen sudah sesuai.</p>
+              </div>
+              <span style={{
+                fontSize: '12px', fontWeight: 700, padding: '4px 12px', borderRadius: '20px',
+                background: status === 'Draf' ? '#FFEDD5' : '#DCFCE7',
+                color: status === 'Draf' ? '#EA580C' : '#16A34A'
+              }}>
+                {status}
+              </span>
             </div>
-            <span style={{
-              fontSize: '12px', fontWeight: 700, padding: '4px 12px', borderRadius: '20px',
-              background: status === 'Draf' ? '#FFEDD5' : '#DCFCE7',
-              color: status === 'Draf' ? '#EA580C' : '#16A34A'
-            }}>
-              {status}
-            </span>
-          </div>
 
-          {/* Judul & Divisi */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-            <div className="portal-form-group">
-              <label className="portal-form-label">Judul LPJ</label>
-              <input
-                className="portal-input"
-                placeholder="Contoh: LPJ SIOMAS Fest 2024"
-                value={form.judulLPJ}
-                onChange={(e) => setForm({ ...form, judulLPJ: e.target.value })}
-              />
-            </div>
-            <div className="portal-form-group">
-              <label className="portal-form-label">Divisi</label>
-              <div style={{ position: 'relative' }}>
-                <select
-                  className="portal-select"
-                  value={form.divisi}
-                  onChange={(e) => setForm({ ...form, divisi: e.target.value })}
-                >
-                  <option>Divisi Acara</option>
-                  <option>PSDM</option>
-                  <option>Sekretariat</option>
-                  <option>Bendahara</option>
-                  <option>Humas</option>
-                </select>
+            {/* Judul & Divisi */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div className="portal-form-group">
+                <label className="portal-form-label">Judul LPJ</label>
+                <input
+                  className="portal-input"
+                  placeholder="Contoh: LPJ Kegiatan Pengabdian Masyarakat"
+                  value={form.judulLPJ}
+                  onChange={(e) => setForm({ ...form, judulLPJ: e.target.value })}
+                />
+              </div>
+              <div className="portal-form-group">
+                <label className="portal-form-label">Divisi</label>
+                <div style={{ position: 'relative' }}>
+                  <select
+                    className="portal-select"
+                    value={form.divisi}
+                    onChange={(e) => setForm({ ...form, divisi: e.target.value })}
+                  >
+                    <option>Divisi Acara</option>
+                    <option>PSDM</option>
+                    <option>Sekretariat</option>
+                    <option>Bendahara</option>
+                    <option>Humas</option>
+                  </select>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Deskripsi */}
-          <div className="portal-form-group" style={{ marginBottom: '20px' }}>
-            <label className="portal-form-label">Deskripsi singkat</label>
-            <textarea
-              className="portal-textarea"
-              rows="4"
-              placeholder="Tuliskan ringkasan kegiatan dan pertanggungjawaban..."
-              value={form.deskripsi}
-              onChange={(e) => setForm({ ...form, deskripsi: e.target.value })}
-            />
-          </div>
-
-          {/* File Dropzone */}
-          <div
-            style={{
-              border: `2px dashed ${isDragging ? '#6366F1' : '#CBD5E1'}`,
-              borderRadius: '14px',
-              padding: '48px 24px',
-              textAlign: 'center',
-              cursor: 'pointer',
-              background: isDragging ? '#EEF2FF' : form.fileName ? '#F0FDF4' : '#FAFAFA',
-              transition: 'all 0.2s',
-              marginBottom: '8px'
-            }}
-            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={handleDrop}
-            onClick={handleFileSelect}
-          >
-            <div style={{ width: '52px', height: '52px', background: '#EEF2FF', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', color: '#6366F1' }}>
-              <Upload size={24} />
+            {/* Deskripsi */}
+            <div className="portal-form-group" style={{ marginBottom: '20px' }}>
+              <label className="portal-form-label">Deskripsi singkat</label>
+              <textarea
+                className="portal-textarea"
+                rows="4"
+                placeholder="Tuliskan ringkasan kegiatan dan pertanggungjawaban..."
+                value={form.deskripsi}
+                onChange={(e) => setForm({ ...form, deskripsi: e.target.value })}
+              />
             </div>
-            {form.fileName ? (
-              <>
-                <p style={{ fontSize: '15px', fontWeight: 700, color: '#10B981', marginBottom: '4px' }}>{form.fileName}</p>
-                <p style={{ fontSize: '13px', color: '#64748B' }}>Ukuran: {form.fileSize}</p>
-              </>
-            ) : (
-              <>
-                <p style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', marginBottom: '6px' }}>Seret &amp; lepas berkas ke sini</p>
-                <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '4px' }}>
-                  atau <span style={{ color: '#6366F1', fontWeight: 600 }}>pilih dari perangkat</span>
-                </p>
-                <p style={{ fontSize: '12px', color: '#94A3B8' }}>Format PDF atau DOCX • Maksimal 10 MB</p>
-              </>
-            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.zip"
+              style={{ display: 'none' }}
+              onChange={(e) => handleFileChosen(e.target.files?.[0])}
+            />
+
+            {/* File Dropzone */}
+            <div
+              style={{
+                border: `2px dashed ${isDragging ? '#6366F1' : '#CBD5E1'}`,
+                borderRadius: '14px',
+                padding: '48px 24px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                background: isDragging ? '#EEF2FF' : form.fileName ? '#F0FDF4' : '#FAFAFA',
+                transition: 'all 0.2s',
+                marginBottom: '8px'
+              }}
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <div style={{ width: '52px', height: '52px', background: '#EEF2FF', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', color: '#6366F1' }}>
+                <Upload size={24} />
+              </div>
+              {form.fileName ? (
+                <>
+                  <p style={{ fontSize: '15px', fontWeight: 700, color: '#10B981', marginBottom: '4px' }}>{form.fileName}</p>
+                  <p style={{ fontSize: '13px', color: '#64748B' }}>Ukuran: {form.fileSize}</p>
+                </>
+              ) : (
+                <>
+                  <p style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', marginBottom: '6px' }}>Seret &amp; lepas berkas ke sini</p>
+                  <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '4px' }}>
+                    atau <span style={{ color: '#6366F1', fontWeight: 600 }}>pilih dari perangkat</span>
+                  </p>
+                  <p style={{ fontSize: '12px', color: '#94A3B8' }}>Format PDF atau DOCX • Maksimal 10 MB</p>
+                </>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', paddingTop: '16px', borderTop: '1px solid #F1F5F9' }}>
+              <button
+                type="button"
+                className="portal-outline-btn"
+                style={{ width: 'auto', padding: '10px 20px', fontSize: '13.5px' }}
+                disabled={submitting}
+                onClick={() => handleSubmit(true)}
+              >
+                Simpan sebagai Draf
+              </button>
+              <button
+                type="button"
+                className="btn-primary-glow"
+                style={{ padding: '10px 24px', fontSize: '13.5px' }}
+                disabled={submitting}
+                onClick={() => handleSubmit(false)}
+              >
+                <Upload size={15} style={{ marginRight: '6px' }} /> {submitting ? 'Mengunggah...' : 'Unggah LPJ'}
+              </button>
+            </div>
           </div>
 
-          {form.fileName && (
-            <p style={{ fontSize: '12px', color: '#6366F1', fontWeight: 600, marginBottom: '20px' }}>
-              Uji validasi berkas {form.fileSize}
-            </p>
-          )}
+          {/* Riwayat LPJ yang Diunggah */}
+          <div className="portal-card" style={{ padding: '24px' }}>
+            <h3 className="portal-card-title" style={{ marginBottom: '4px' }}>Riwayat Pengajuan LPJ Saya</h3>
+            <p className="portal-card-subtitle" style={{ marginBottom: '16px' }}>Status validasi langsung dari Admin / Ketua UKM.</p>
 
-          {/* Action Buttons */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', paddingTop: '8px', borderTop: '1px solid #F1F5F9' }}>
-            <button
-              type="button"
-              className="portal-outline-btn"
-              style={{ width: 'auto', padding: '10px 20px', fontSize: '13.5px' }}
-              onClick={() => handleSubmit(true)}
-            >
-              Simpan sebagai Draf
-            </button>
-            <button
-              type="button"
-              className="btn-primary-glow"
-              style={{ padding: '10px 24px', fontSize: '13.5px' }}
-              onClick={() => handleSubmit(false)}
-            >
-              <Upload size={15} style={{ marginRight: '6px' }} /> Unggah LPJ
-            </button>
+            {mySubmissions.length === 0 ? (
+              <div style={{ padding: '24px', textAlign: 'center', color: '#94A3B8', fontSize: '13px', background: '#F8FAFC', borderRadius: '10px' }}>
+                Belum ada LPJ yang diunggah.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {mySubmissions.map((doc) => (
+                  <div key={doc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', border: '1px solid #F1F5F9', borderRadius: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '36px', height: '36px', background: '#EEF2FF', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4F46E5' }}>
+                        <FileText size={18} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0F172A' }}>{doc.nama_berkas}</div>
+                        <div style={{ fontSize: '12px', color: '#64748B' }}>Pengunggah: {doc.uploader_name || 'Pengurus'}</div>
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize: '12px', fontWeight: 700, padding: '4px 12px', borderRadius: '999px',
+                      background: doc.status === 'Approved' ? '#DCFCE7' : doc.status === 'Revisi' ? '#FEE2E2' : '#FEF3C7',
+                      color: doc.status === 'Approved' ? '#15803D' : doc.status === 'Revisi' ? '#B91C1C' : '#D97706'
+                    }}>
+                      {doc.status === 'Draft' ? 'Menunggu Validasi' : doc.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

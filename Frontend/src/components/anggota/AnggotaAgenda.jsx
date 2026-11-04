@@ -1,77 +1,59 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Clock, MapPin, Users, X } from 'lucide-react';
+import { schedulesApi } from '../../services/api.js';
 
 const MONTHS = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
 ];
 
-const INITIAL_EVENTS = [
-  {
-    id: 1,
-    day: 7,
-    month: 10, // November (0-indexed)
-    year: 2024,
-    title: 'Rapat Divisi',
-    category: 'Internal Divisi',
-    chipClass: 'event-chip-blue',
-    time: '14:00 - 16:00 WITA',
-    location: 'Ruang Rapat 2',
-    division: 'Divisi Humas & Publikasi',
-    desc: 'Koordinasi mingguan progres publikasi media sosial dan evaluasi konten berkala.'
-  },
-  {
-    id: 2,
-    day: 14,
-    month: 10,
-    year: 2024,
-    title: 'Workshop',
-    category: 'Pengembangan Skill',
-    chipClass: 'event-chip-green',
-    time: '09:00 - 12:30 WITA',
-    location: 'Aula Gedung C',
-    division: 'Divisi PSDM',
-    desc: 'Pelatihan kepemimpinan dan manajemen organisasi bagi seluruh anggota baru.'
-  },
-  {
-    id: 3,
-    day: 18,
-    month: 10,
-    year: 2024,
-    title: 'SIOMAS Fest',
-    category: 'Program Kerja Utama',
-    chipClass: 'event-chip-yellow',
-    time: '08:00 - 18:00 WITA',
-    location: 'Lapangan Utama Kampus',
-    division: 'Seluruh Divisi',
-    desc: 'Festival tahunan organisasi mahasiswa yang menampilkan expo karya, seni, dan kolaborasi UKM.'
-  },
-  {
-    id: 4,
-    day: 22,
-    month: 10,
-    year: 2024,
-    title: 'Rapat Koordinasi Akhir',
-    category: 'Manajemen',
-    chipClass: 'event-chip-purple',
-    time: '15:30 - 17:30 WITA',
-    location: 'Aula Gedung C',
-    division: 'Pengurus Harian & Anggota',
-    desc: 'Evaluasi pencapaian target dan program kerja semester ganjil.'
-  }
-];
+function mapScheduleToEvent(item) {
+  const d = new Date(item.waktu);
+  const valid = !isNaN(d.getTime());
+  const chipMap = {
+    'Internal': 'event-chip-blue',
+    'Divisi': 'event-chip-green',
+    'Umum': 'event-chip-yellow'
+  };
+  return {
+    id: item.id,
+    day: valid ? d.getDate() : 1,
+    month: valid ? d.getMonth() : 0,
+    year: valid ? d.getFullYear() : new Date().getFullYear(),
+    title: item.judul_kegiatan,
+    category: item.kategori || 'Umum',
+    chipClass: chipMap[item.kategori] || 'event-chip-blue',
+    time: valid ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} WITA` : '-',
+    location: item.lokasi || 'Kampus SIOMAS',
+    division: item.pic_name || 'Pengurus SIOMAS',
+    desc: item.keterangan || 'Jadwal kegiatan organisasi.'
+  };
+}
 
 export default function AnggotaAgenda() {
-  const [currentMonth, setCurrentMonth] = useState(10); // November (0-indexed)
-  const [currentYear, setCurrentYear] = useState(2024);
+  const now = new Date();
+  const [currentMonth, setCurrentMonth] = useState(now.getMonth());
+  const [currentYear, setCurrentYear] = useState(now.getFullYear());
   const [viewMode, setViewMode] = useState('Bulan');
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [events] = useState(INITIAL_EVENTS);
+  const [events, setEvents] = useState([]);
+
+  useEffect(() => {
+    async function load() {
+      const res = await schedulesApi.getAll();
+      if (res.ok && res.data?.data) {
+        setEvents(res.data.data.map(mapScheduleToEvent));
+      } else {
+        setEvents([]);
+      }
+    }
+    load();
+  }, []);
 
   const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
   const getFirstDayOfMonth = (year, month) => {
     const day = new Date(year, month, 1).getDay();
-    return day === 0 ? 6 : day - 1; // 0 = Senin, 6 = Minggu
+    return day === 0 ? 6 : day - 1;
   };
 
   const daysInMonth = getDaysInMonth(currentYear, currentMonth);
@@ -96,20 +78,16 @@ export default function AnggotaAgenda() {
     }
   };
 
-  // Build calendar days array
   const calendarDays = [];
-  // Days from previous month
   for (let i = firstDay - 1; i >= 0; i--) {
     calendarDays.push({ day: prevMonthDays - i, isCurrentMonth: false, events: [] });
   }
-  // Days in current month
   for (let d = 1; d <= daysInMonth; d++) {
     const dayEvents = events.filter(
       (e) => e.year === currentYear && e.month === currentMonth && e.day === d
     );
     calendarDays.push({ day: d, isCurrentMonth: true, events: dayEvents });
   }
-  // Days from next month to fill weeks
   const totalSlots = Math.ceil(calendarDays.length / 7) * 7;
   const remaining = (totalSlots < 35 ? 35 : totalSlots) - calendarDays.length;
   for (let d = 1; d <= remaining; d++) {
@@ -144,7 +122,7 @@ export default function AnggotaAgenda() {
             type="button" 
             className="portal-outline-btn" 
             style={{ width: 'auto', padding: '6px 14px', fontSize: '12.5px' }}
-            onClick={() => { setCurrentMonth(10); setCurrentYear(2024); }}
+            onClick={() => { setCurrentMonth(now.getMonth()); setCurrentYear(now.getFullYear()); }}
           >
             Hari ini
           </button>
@@ -254,7 +232,7 @@ export default function AnggotaAgenda() {
                 <div className="meta-tile" style={{ gridColumn: 'span 2' }}>
                   <Users size={18} className="meta-tile-icon" />
                   <div>
-                    <div className="meta-tile-label">Divisi Penanggung Jawab</div>
+                    <div className="meta-tile-label">Penanggung Jawab</div>
                     <div className="meta-tile-value">{selectedEvent.division}</div>
                   </div>
                 </div>

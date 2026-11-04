@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutGrid,
   BarChart2,
@@ -13,6 +13,7 @@ import {
   LogOut,
   ChevronRight
 } from 'lucide-react';
+import { lpjApi, sipakamaseApi, interUkmApi, apiFetch } from '../../services/api.js';
 
 export default function KetuaLayout({
   activeView,
@@ -22,6 +23,33 @@ export default function KetuaLayout({
   children,
   unreadCount = 0
 }) {
+  const [badges, setBadges] = useState({
+    lpj: 0,
+    sipakamase: 0,
+    interukm: 0,
+    akses: 0
+  });
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      const [lpjRes, sipaRes, interRes, usersRes] = await Promise.all([
+        lpjApi.getPendingValidation(),
+        sipakamaseApi.getAll({ status: 'Draft' }),
+        interUkmApi.getPending(),
+        apiFetch('/auth/users?status=Menunggu%20Verifikasi')
+      ]);
+
+      setBadges({
+        lpj: lpjRes.ok ? (lpjRes.data?.data?.length || 0) : 0,
+        sipakamase: sipaRes.ok ? (sipaRes.data?.data?.length || 0) : 0,
+        interukm: interRes.ok ? (interRes.data?.data?.length || 0) : 0,
+        akses: usersRes.ok ? (usersRes.data?.data?.length || 0) : 0
+      });
+    };
+
+    fetchCounts();
+  }, [activeView]);
+
   const breadcrumbMap = {
     'k-beranda': 'Beranda',
     'k-dashboard-eksekutif': 'Dashboard Eksekutif',
@@ -54,10 +82,10 @@ export default function KetuaLayout({
     { key: 'k-dashboard-eksekutif', label: 'Dashboard Eksekutif', icon: BarChart2 },
     { key: 'k-kalender-agenda', label: 'Kalender Agenda', icon: Calendar },
     { key: 'k-vault-lpj', label: 'Vault LPJ & Dokumen', icon: FolderArchive },
-    { key: 'k-validasi-lpj', label: 'Validasi LPJ', icon: ShieldCheck, badge: 3 },
-    { key: 'k-verifikasi-sipakamase', label: 'Verifikasi Sipakamase', icon: CheckSquare, badge: 2 },
-    { key: 'k-hub-inter-ukm', label: 'Hub Inter-UKM', icon: Users },
-    { key: 'k-manajemen-akses', label: 'Manajemen Akses', icon: Shield, badge: 5 },
+    { key: 'k-validasi-lpj', label: 'Validasi LPJ', icon: ShieldCheck, badge: badges.lpj },
+    { key: 'k-verifikasi-sipakamase', label: 'Verifikasi Sipakamase', icon: CheckSquare, badge: badges.sipakamase },
+    { key: 'k-hub-inter-ukm', label: 'Hub Inter-UKM', icon: Users, badge: badges.interukm },
+    { key: 'k-manajemen-akses', label: 'Manajemen Akses', icon: Shield, badge: badges.akses },
     { key: 'k-log-notifikasi', label: 'Log Notifikasi', icon: Bell },
     { key: 'k-audit-log', label: 'Audit Log', icon: Eye }
   ];
@@ -100,7 +128,7 @@ export default function KetuaLayout({
                   >
                     <Icon size={18} />
                     <span>{item.label}</span>
-                    {item.badge && (
+                    {item.badge > 0 && (
                       <span style={{
                         marginLeft: 'auto',
                         background: '#EF4444',
@@ -186,7 +214,7 @@ export default function KetuaLayout({
                 {getInitials(currentUser?.nama)}
               </div>
               <div className="portal-user-info">
-                <span className="portal-user-name">{currentUser?.nama || 'Ardi Pratama'}</span>
+                <span className="portal-user-name">{currentUser?.nama || 'Ketua UKM'}</span>
                 <span className="portal-user-role">Ketua UKM</span>
               </div>
               <ChevronRight size={14} color="#94A3B8" />

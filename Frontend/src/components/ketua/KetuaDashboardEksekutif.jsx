@@ -1,21 +1,60 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, Calendar, FileText, Link2, Shield } from 'lucide-react';
+import { apiFetch, schedulesApi, documentsApi, lpjApi, interUkmApi } from '../../services/api.js';
 
 export default function KetuaDashboardEksekutif({ onNavigate }) {
+  const [counts, setCounts] = useState({
+    activeUsers: 0,
+    totalUsers: 0,
+    schedulesCount: 0,
+    lpjApprovedPct: 0,
+    interUkmCount: 0
+  });
+
+  useEffect(() => {
+    async function loadData() {
+      const [usersRes, schedRes, docsRes, lpjPendingRes, interRes] = await Promise.all([
+        apiFetch('/auth/users'),
+        schedulesApi.getAll(),
+        documentsApi.getAll(),
+        lpjApi.getPendingValidation(),
+        interUkmApi.getFeed()
+      ]);
+
+      const allUsers = usersRes.ok && usersRes.data?.data ? usersRes.data.data : [];
+      const activeUsers = allUsers.filter(u => u.status_keanggotaan === 'Aktif').length;
+      const scheds = schedRes.ok && schedRes.data?.data ? schedRes.data.data : [];
+      const approvedDocs = docsRes.ok && docsRes.data?.data ? docsRes.data.data : [];
+      const pendingLpj = lpjPendingRes.ok && lpjPendingRes.data?.data ? lpjPendingRes.data.data : [];
+      const interFeed = interRes.ok && interRes.data?.data ? interRes.data.data : [];
+
+      const totalDocs = approvedDocs.length + pendingLpj.length;
+      const lpjPct = totalDocs > 0 ? Math.round((approvedDocs.length / totalDocs) * 100) : 0;
+
+      setCounts({
+        activeUsers,
+        totalUsers: allUsers.length,
+        schedulesCount: scheds.length,
+        lpjApprovedPct: lpjPct,
+        interUkmCount: interFeed.length
+      });
+    }
+    loadData();
+  }, []);
+
   const stats = [
-    { label: 'Anggota aktif', value: '113', sub: 'Periode berjalan', icon: Users, color: '#6366F1', bg: '#EEF2FF' },
-    { label: 'Program berjalan', value: '12', sub: 'Periode berjalan', icon: Calendar, color: '#10B981', bg: '#ECFDF5' },
-    { label: 'LPJ approved', value: '94%', sub: 'Periode berjalan', icon: FileText, color: '#F59E0B', bg: '#FFFBEB' },
-    { label: 'Kolaborasi aktif', value: '6', sub: 'Periode berjalan', icon: Link2, color: '#4F46E5', bg: '#EEF2FF' }
+    { label: 'Anggota aktif', value: String(counts.activeUsers), sub: 'Periode berjalan', icon: Users, color: '#6366F1', bg: '#EEF2FF' },
+    { label: 'Program berjalan', value: String(counts.schedulesCount), sub: 'Periode berjalan', icon: Calendar, color: '#10B981', bg: '#ECFDF5' },
+    { label: 'LPJ approved', value: `${counts.lpjApprovedPct}%`, sub: 'Periode berjalan', icon: FileText, color: '#F59E0B', bg: '#FFFBEB' },
+    { label: 'Kolaborasi aktif', value: String(counts.interUkmCount), sub: 'Periode berjalan', icon: Link2, color: '#4F46E5', bg: '#EEF2FF' }
   ];
 
-  const barHeights = [55, 65, 72, 85, 78, 80, 90, 88, 88, 95, 92, 100];
-  const barMonths = ['Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov'];
+  const userValidPct = counts.totalUsers > 0 ? Math.round((counts.activeUsers / counts.totalUsers) * 100) : 0;
   const health = [
-    { label: 'Kelengkapan LPJ', pct: 94 },
-    { label: 'Validitas akun', pct: 88 },
-    { label: 'Kepatuhan jadwal', pct: 82 },
-    { label: 'Respons notifikasi', pct: 73 }
+    { label: 'Kelengkapan LPJ', pct: counts.lpjApprovedPct },
+    { label: 'Validitas akun', pct: userValidPct },
+    { label: 'Program terjadwal', pct: counts.schedulesCount > 0 ? 100 : 0 },
+    { label: 'Kolaborasi Inter-UKM', pct: counts.interUkmCount > 0 ? 100 : 0 }
   ];
 
   return (
@@ -43,7 +82,7 @@ export default function KetuaDashboardEksekutif({ onNavigate }) {
             Kinerja organisasi dalam satu pandangan
           </h1>
           <p style={{ fontSize: '13.5px', color: '#94A3B8', marginBottom: '20px' }}>
-            Ringkasan operasional, kepatuhan administrasi, dan aktivitas organisasi periode November 2024.
+            Ringkasan operasional, kepatuhan administrasi, dan aktivitas organisasi secara real-time dari database.
           </p>
           <button
             type="button"
@@ -78,57 +117,23 @@ export default function KetuaDashboardEksekutif({ onNavigate }) {
         })}
       </div>
 
-      {/* Charts Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-        {/* Bar Chart */}
-        <div className="portal-card">
-          <div className="portal-card-header">
-            <div>
-              <h3 className="portal-card-title">Partisipasi anggota</h3>
-              <p className="portal-card-subtitle">Tren enam bulan terakhir</p>
-            </div>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: '#10B981' }}>+12.5%</span>
-          </div>
-
-          {/* Bar chart */}
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '180px', marginTop: '16px', paddingBottom: '24px', position: 'relative' }}>
-            {barHeights.map((h, i) => (
-              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
-                <div style={{
-                  width: '100%', height: `${h}%`,
-                  background: i === barHeights.length - 1 ? '#4F46E5' : '#A5B4FC',
-                  borderRadius: '4px 4px 0 0',
-                  transition: 'all 0.3s'
-                }} />
-              </div>
-            ))}
-            {/* X-axis labels */}
-            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'space-around' }}>
-              {barMonths.map(m => (
-                <span key={m} style={{ fontSize: '11px', color: '#94A3B8', textAlign: 'center' }}>{m}</span>
-              ))}
-            </div>
-          </div>
+      {/* Health indicators */}
+      <div className="portal-card">
+        <div className="portal-card-header">
+          <h3 className="portal-card-title">Kesehatan administrasi</h3>
         </div>
-
-        {/* Health indicators */}
-        <div className="portal-card">
-          <div className="portal-card-header">
-            <h3 className="portal-card-title">Kesehatan administrasi</h3>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '12px' }}>
-            {health.map((h, i) => (
-              <div key={i}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '13px', color: '#0F172A', fontWeight: 500 }}>{h.label}</span>
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#4F46E5' }}>{h.pct}%</span>
-                </div>
-                <div style={{ height: '8px', background: '#EEF2FF', borderRadius: '999px', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${h.pct}%`, background: '#4F46E5', borderRadius: '999px', transition: 'width 0.6s ease' }} />
-                </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '12px' }}>
+          {health.map((h, i) => (
+            <div key={i}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ fontSize: '13px', color: '#0F172A', fontWeight: 500 }}>{h.label}</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#4F46E5' }}>{h.pct}%</span>
               </div>
-            ))}
-          </div>
+              <div style={{ height: '8px', background: '#EEF2FF', borderRadius: '999px', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${h.pct}%`, background: '#4F46E5', borderRadius: '999px', transition: 'width 0.6s ease' }} />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

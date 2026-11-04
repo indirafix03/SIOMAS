@@ -1,86 +1,61 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Plus, 
   Heart, 
   Share2, 
   Users, 
-  Calendar, 
-  ChevronRight,
-  Sparkles 
+  ChevronRight
 } from 'lucide-react';
 import ModalPermintaanKolaborasi from './ModalPermintaanKolaborasi.jsx';
+import { interUkmApi, schedulesApi, parseInterUkmPost } from '../../services/api.js';
+
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
 export default function AnggotaHubInter({ onNavigate, onSelectPost, showToast }) {
   const [showModalKolaborasi, setShowModalKolaborasi] = useState(false);
+  const [posts, setPosts] = useState([]);
+  const [agendaBersama, setAgendaBersama] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const [posts, setPosts] = useState([
-    {
-      id: 1,
-      orgName: 'BEM Universitas',
-      orgCode: 'BU',
-      orgBadgeClass: 'org-blue',
-      timeAgo: '1 jam lalu',
-      category: 'Kolaborasi',
-      tagClass: 'tag-purple',
-      judul: 'Open Collaboration: Campus Creative Week',
-      headline: 'Ruang kreatif untuk karya dan kolaborasi mahasiswa',
-      image: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=1000&auto=format&fit=crop&q=80',
-      deskripsi: 'Kami mengundang seluruh UKM untuk berkolaborasi dalam rangkaian Campus Creative Week 2024.',
-      likes: 24,
-      isLiked: false,
-      pelaksanaan: '24–26 November 2024',
-      tempat: 'Student Center',
-      fileName: 'Proposal_Campus_Creative_Week.pdf',
-      fileSize: '3.2 MB',
-      contactPerson: 'Nadya Ayuningtyas',
-      contactRole: 'Koordinator Kolaborasi BEM Universitas',
-      contactWa: '+62 812 9988 7766'
-    },
-    {
-      id: 2,
-      orgName: 'UKM Fotografi',
-      orgCode: 'UF',
-      orgBadgeClass: 'org-green',
-      timeAgo: '2 jam lalu',
-      category: 'Acara',
-      tagClass: 'tag-gray',
-      judul: 'Pameran Foto: Ruang dan Cerita',
-      headline: 'Apresiasi visual sudut kehidupan kampus dan kota',
-      image: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=1000&auto=format&fit=crop&q=80',
-      deskripsi: 'Pameran terbuka hasil karya mahasiswa akan hadir pekan depan di Galeri Kampus. Mengundang seluruh pegiat visual kampus.',
-      likes: 36,
-      isLiked: false,
-      pelaksanaan: '28–30 November 2024',
-      tempat: 'Galeri Seni Kampus',
-      fileName: 'Katalog_Pameran_Foto.pdf',
-      fileSize: '4.8 MB',
-      contactPerson: 'Fajar Nugraha',
-      contactRole: 'Ketua UKM Fotografi',
-      contactWa: '+62 813 4455 6677'
-    },
-    {
-      id: 3,
-      orgName: 'Himpunan Informatika',
-      orgCode: 'HI',
-      orgBadgeClass: 'org-indigo',
-      timeAgo: '3 jam lalu',
-      category: 'Media Partner',
-      tagClass: 'tag-gray',
-      judul: 'Mencari Media Partner untuk TechnoFest',
-      headline: 'Festival inovasi teknologi terbesar tingkat universitas',
-      image: 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=1000&auto=format&fit=crop&q=80',
-      deskripsi: 'Mari jadi bagian dari festival teknologi terbesar di kampus tahun ini. Kami menyediakan slot promosi khusus bagi media partner terdaftar.',
-      likes: 48,
-      isLiked: false,
-      pelaksanaan: '05–07 Desember 2024',
-      tempat: 'Auditorium Kampus',
-      fileName: 'Paket_Media_Partner_TechnoFest.pdf',
-      fileSize: '2.1 MB',
-      contactPerson: 'Bima Satria',
-      contactRole: 'Divisi Partnership Himpunan',
-      contactWa: '+62 821 7788 9900'
-    }
-  ]);
+  const loadHubData = useCallback(async () => {
+    setLoading(true);
+    const [feedRes, myRes, schedRes] = await Promise.all([
+      interUkmApi.getFeed(),
+      interUkmApi.getMyPosts(),
+      schedulesApi.getAll()
+    ]);
+
+    const feedList = feedRes.ok && feedRes.data?.data ? feedRes.data.data : [];
+    const myList = myRes.ok && myRes.data?.data ? myRes.data.data : [];
+    const mergedMap = new Map();
+    [...myList, ...feedList].forEach(item => mergedMap.set(item.id, parseInterUkmPost(item)));
+    setPosts(Array.from(mergedMap.values()));
+
+    const schedList = schedRes.ok && schedRes.data?.data ? schedRes.data.data : [];
+    const clsList = ['blue', 'green', ''];
+    const colorList = ['#6366F1', '#10B981', '#D97706'];
+    setAgendaBersama(
+      schedList.slice(0, 3).map((s, idx) => {
+        const d = new Date(s.waktu);
+        const valid = !isNaN(d.getTime());
+        return {
+          id: s.id,
+          day: valid ? String(d.getDate()) : '--',
+          month: valid ? MONTHS_SHORT[d.getMonth()] : '---',
+          title: s.judul_kegiatan,
+          loc: s.lokasi || 'Kampus',
+          cls: clsList[idx % clsList.length],
+          color: colorList[idx % colorList.length],
+          bg: idx % 3 === 2 ? '#FFFBEB' : undefined
+        };
+      })
+    );
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    loadHubData();
+  }, [loadHubData]);
 
   const handleToggleLike = (postId) => {
     setPosts(posts.map((post) => {
@@ -135,73 +110,90 @@ export default function AnggotaHubInter({ onNavigate, onSelectPost, showToast })
               <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', margin: 0 }}>Aktivitas Terbaru</h3>
               <p style={{ fontSize: '13px', color: '#64748B', margin: '2px 0 0' }}>Kabar dari organisasi di seluruh kampus</p>
             </div>
-            <button 
-              type="button" 
-              className="portal-link-btn"
-              onClick={() => showToast('Menampilkan seluruh feed kolaborasi terkini.', 'info')}
-            >
-              Lihat semua <ChevronRight size={14} />
-            </button>
+            {posts.length > 0 && (
+              <button 
+                type="button" 
+                className="portal-link-btn"
+                onClick={loadHubData}
+              >
+                Segarkan <ChevronRight size={14} />
+              </button>
+            )}
           </div>
 
-          {posts.map((post) => (
-            <div key={post.id} className="hub-post-card">
-              <div className="hub-post-header">
-                <div className="hub-post-org">
-                  <div className={`org-avatar-badge ${post.orgBadgeClass}`}>
-                    {post.orgCode}
-                  </div>
-                  <div>
-                    <span className="org-name-text">{post.orgName}</span>
-                    <span style={{ margin: '0 6px', color: '#CBD5E1' }}>•</span>
-                    <span className="org-time-ago">{post.timeAgo}</span>
-                  </div>
-                </div>
-
-                <span className={`tag-badge ${post.tagClass}`}>
-                  {post.category}
-                </span>
-              </div>
-
-              <h4 className="hub-post-title">{post.judul}</h4>
-
-              <div className="hub-post-image-wrap">
-                <img src={post.image} alt={post.judul} />
-              </div>
-
-              <p className="hub-post-desc">{post.deskripsi}</p>
-
-              <div className="hub-post-footer">
-                <div className="hub-post-actions-left">
-                  <button 
-                    type="button" 
-                    className={`hub-action-btn ${post.isLiked ? 'active' : ''}`}
-                    onClick={() => handleToggleLike(post.id)}
-                  >
-                    <Heart size={16} fill={post.isLiked ? '#EF4444' : 'none'} color={post.isLiked ? '#EF4444' : 'currentColor'} />
-                    <span>{post.likes} tertarik</span>
-                  </button>
-
-                  <button 
-                    type="button" 
-                    className="hub-action-btn"
-                    onClick={() => handleShare(post)}
-                  >
-                    <Share2 size={16} />
-                    <span>Bagikan</span>
-                  </button>
-                </div>
-
-                <button 
-                  type="button" 
-                  className="btn-detail-pill"
-                  onClick={() => onSelectPost(post)}
-                >
-                  Lihat Detail
-                </button>
-              </div>
+          {loading ? (
+            <div className="portal-card" style={{ textAlign: 'center', padding: '40px 20px', color: '#94A3B8' }}>
+              Memuat publikasi Hub Inter-UKM...
             </div>
-          ))}
+          ) : posts.length === 0 ? (
+            <div className="portal-card" style={{ textAlign: 'center', padding: '48px 24px', color: '#64748B' }}>
+              <div style={{ fontSize: '15px', fontWeight: 600, color: '#0F172A', marginBottom: '6px' }}>Belum ada publikasi kolaborasi Inter-UKM</div>
+              <p style={{ fontSize: '13px', color: '#94A3B8', margin: 0 }}>
+                Klik <strong>Publikasikan ke Hub</strong> atau <strong>Buat Permintaan Kolaborasi</strong> untuk mengajukan publikasi baru.
+              </p>
+            </div>
+          ) : (
+            posts.map((post) => (
+              <div key={post.id} className="hub-post-card">
+                <div className="hub-post-header">
+                  <div className="hub-post-org">
+                    <div className={`org-avatar-badge ${post.orgBadgeClass}`}>
+                      {post.orgCode}
+                    </div>
+                    <div>
+                      <span className="org-name-text">{post.orgName}</span>
+                      <span style={{ margin: '0 6px', color: '#CBD5E1' }}>•</span>
+                      <span className="org-time-ago">{post.timeAgo}</span>
+                    </div>
+                  </div>
+
+                  <span className={`tag-badge ${post.tagClass}`}>
+                    {post.category}
+                  </span>
+                </div>
+
+                <h4 className="hub-post-title">{post.judul}</h4>
+
+                {post.image && (
+                  <div className="hub-post-image-wrap">
+                    <img src={post.image} alt={post.judul} onError={e => { e.target.parentElement.style.display = 'none'; }} />
+                  </div>
+                )}
+
+                <p className="hub-post-desc">{post.deskripsi}</p>
+
+                <div className="hub-post-footer">
+                  <div className="hub-post-actions-left">
+                    <button 
+                      type="button" 
+                      className={`hub-action-btn ${post.isLiked ? 'active' : ''}`}
+                      onClick={() => handleToggleLike(post.id)}
+                    >
+                      <Heart size={16} fill={post.isLiked ? '#EF4444' : 'none'} color={post.isLiked ? '#EF4444' : 'currentColor'} />
+                      <span>{post.likes} tertarik</span>
+                    </button>
+
+                    <button 
+                      type="button" 
+                      className="hub-action-btn"
+                      onClick={() => handleShare(post)}
+                    >
+                      <Share2 size={16} />
+                      <span>Bagikan</span>
+                    </button>
+                  </div>
+
+                  <button 
+                    type="button" 
+                    className="btn-detail-pill"
+                    onClick={() => onSelectPost(post)}
+                  >
+                    Lihat Detail
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         {/* Right: Sidebar Column */}
@@ -216,41 +208,24 @@ export default function AnggotaHubInter({ onNavigate, onSelectPost, showToast })
             </div>
 
             <div className="upcoming-schedules-list">
-              <div className="upcoming-schedule-item">
-                <div className="schedule-date-badge blue">
-                  <span className="schedule-date-day">21</span>
-                  <span className="schedule-date-month">Nov</span>
+              {agendaBersama.length === 0 ? (
+                <div style={{ fontSize: '12.5px', color: '#94A3B8', textAlign: 'center', padding: '12px 0' }}>
+                  Belum ada agenda bersama.
                 </div>
-                <div className="schedule-details">
-                  <h5 className="schedule-title">Forum Ketua UKM</h5>
-                  <span className="schedule-meta">Gedung Rektorat</span>
-                  <span style={{ fontSize: '11px', color: '#6366F1', fontWeight: 600 }}>4 organisasi bergabung</span>
-                </div>
-              </div>
-
-              <div className="upcoming-schedule-item">
-                <div className="schedule-date-badge green">
-                  <span className="schedule-date-day">24</span>
-                  <span className="schedule-date-month">Nov</span>
-                </div>
-                <div className="schedule-details">
-                  <h5 className="schedule-title">Campus Creative Week</h5>
-                  <span className="schedule-meta">Student Center</span>
-                  <span style={{ fontSize: '11px', color: '#10B981', fontWeight: 600 }}>7 organisasi bergabung</span>
-                </div>
-              </div>
-
-              <div className="upcoming-schedule-item">
-                <div className="schedule-date-badge" style={{ background: '#FFFBEB', color: '#D97706' }}>
-                  <span className="schedule-date-day">30</span>
-                  <span className="schedule-date-month">Nov</span>
-                </div>
-                <div className="schedule-details">
-                  <h5 className="schedule-title">TechnoFest 2024</h5>
-                  <span className="schedule-meta">Auditorium Utama</span>
-                  <span style={{ fontSize: '11px', color: '#D97706', fontWeight: 600 }}>10 organisasi bergabung</span>
-                </div>
-              </div>
+              ) : (
+                agendaBersama.map((item) => (
+                  <div key={item.id} className="upcoming-schedule-item">
+                    <div className={`schedule-date-badge ${item.cls}`} style={item.bg ? { background: item.bg, color: item.color } : {}}>
+                      <span className="schedule-date-day">{item.day}</span>
+                      <span className="schedule-date-month">{item.month}</span>
+                    </div>
+                    <div className="schedule-details">
+                      <h5 className="schedule-title">{item.title}</h5>
+                      <span className="schedule-meta">{item.loc}</span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -277,8 +252,9 @@ export default function AnggotaHubInter({ onNavigate, onSelectPost, showToast })
       {showModalKolaborasi && (
         <ModalPermintaanKolaborasi 
           onClose={() => setShowModalKolaborasi(false)}
-          onSubmit={(data) => {
+          onSubmit={() => {
             setShowModalKolaborasi(false);
+            loadHubData();
           }}
           showToast={showToast}
         />

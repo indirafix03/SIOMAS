@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Download,
   Search,
@@ -10,12 +10,13 @@ import {
   X,
   Tag
 } from 'lucide-react';
+import { documentsApi } from '../../services/api.js';
 
 // Modal Atur Label & Kategorisasi
 function ModalAturLabel({ document, onClose, onSave }) {
   const [label, setLabel] = useState(document.label || 'Proposal');
   const [tagInput, setTagInput] = useState('');
-  const [tags, setTags] = useState(document.tags || ['2024', 'Divisi Acara']);
+  const [tags, setTags] = useState(document.tags || []);
 
   const addTag = (e) => {
     if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) {
@@ -45,7 +46,6 @@ function ModalAturLabel({ document, onClose, onSave }) {
         </div>
 
         <div className="portal-modal-body">
-          {/* Label Dokumen */}
           <div className="portal-form-group">
             <label className="portal-form-label">Label Dokumen</label>
             <select className="portal-select" value={label} onChange={(e) => setLabel(e.target.value)}>
@@ -53,12 +53,9 @@ function ModalAturLabel({ document, onClose, onSave }) {
               <option value="LPJ">LPJ</option>
               <option value="Surat">Surat</option>
               <option value="Sipakamase">Sipakamase</option>
-              <option value="Notulensi">Notulensi</option>
-              <option value="Lainnya">Lainnya</option>
             </select>
           </div>
 
-          {/* Tag Tambahan */}
           <div className="portal-form-group">
             <label className="portal-form-label">Tag tambahan</label>
             <input
@@ -69,7 +66,6 @@ function ModalAturLabel({ document, onClose, onSave }) {
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={addTag}
             />
-            {/* Tags display */}
             {tags.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
                 {tags.map((t) => (
@@ -106,18 +102,35 @@ function ModalAturLabel({ document, onClose, onSave }) {
 }
 
 // Modal Unggah Dokumen
-function ModalUnggahDokumen({ onClose, onSave, showToast }) {
-  const [form, setForm] = useState({ nama: '', divisi: 'Divisi Acara', label: 'Proposal', fileName: '' });
+function ModalUnggahDokumen({ onClose, onUploaded, showToast }) {
+  const [form, setForm] = useState({ nama: '', divisi: 'Divisi Acara', label: 'Proposal', file: null, fileName: '' });
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.nama.trim() || !form.fileName) {
-      showToast('Harap isi nama dokumen dan pilih berkas.', 'warning');
+    if (!form.nama.trim()) {
+      showToast('Harap isi nama dokumen.', 'warning');
       return;
     }
-    onSave(form);
-    showToast(`Dokumen "${form.nama}" berhasil diunggah.`, 'success');
-    onClose();
+    let fileToUpload = form.file;
+    if (!fileToUpload) {
+      showToast('Harap pilih berkas dokumen terlebih dahulu.', 'warning');
+      return;
+    }
+
+    setUploading(true);
+    const namaBerkas = `${form.nama.trim()} (${form.divisi})`;
+    const res = await documentsApi.upload(fileToUpload, namaBerkas, form.label);
+    setUploading(false);
+
+    if (res.ok) {
+      showToast(`Dokumen "${form.nama}" berhasil diunggah ke database!`, 'success');
+      onUploaded();
+      onClose();
+    } else {
+      showToast(res.data?.message || 'Gagal mengunggah dokumen.', 'error');
+    }
   };
 
   return (
@@ -135,7 +148,7 @@ function ModalUnggahDokumen({ onClose, onSave, showToast }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
               <div className="portal-form-group" style={{ gridColumn: '1 / -1' }}>
                 <label className="portal-form-label">Nama Dokumen</label>
-                <input className="portal-input" placeholder="Contoh: LPJ SIOMAS Fest 2024" value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} required />
+                <input className="portal-input" placeholder="Contoh: Proposal Kegiatan Workshop" value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} required />
               </div>
               <div className="portal-form-group">
                 <label className="portal-form-label">Label</label>
@@ -158,10 +171,24 @@ function ModalUnggahDokumen({ onClose, onSave, showToast }) {
               </div>
             </div>
 
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.zip"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) {
+                  setForm({ ...form, file: f, fileName: f.name });
+                  showToast(`Berkas "${f.name}" dipilih.`, 'success');
+                }
+              }}
+            />
+
             {/* Dropzone */}
             <div
               style={{ border: '2px dashed #CBD5E1', borderRadius: '12px', padding: '32px', textAlign: 'center', cursor: 'pointer', background: form.fileName ? '#F0FDF4' : '#FAFAFA', transition: 'all 0.2s' }}
-              onClick={() => { setForm({ ...form, fileName: 'Dokumen_Baru.pdf' }); showToast('Berkas berhasil dipilih.', 'success'); }}
+              onClick={() => fileInputRef.current?.click()}
             >
               <div style={{ width: '44px', height: '44px', background: '#EEF2FF', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: '#6366F1' }}>
                 <Upload size={20} />
@@ -170,7 +197,7 @@ function ModalUnggahDokumen({ onClose, onSave, showToast }) {
                 <p style={{ fontSize: '14px', fontWeight: 600, color: '#10B981' }}>{form.fileName} ✓</p>
               ) : (
                 <>
-                  <p style={{ fontWeight: 600, color: '#0F172A', marginBottom: '4px' }}>Klik untuk pilih berkas</p>
+                  <p style={{ fontWeight: 600, color: '#0F172A', marginBottom: '4px' }}>Klik untuk pilih berkas dari perangkat</p>
                   <p style={{ fontSize: '12px', color: '#94A3B8' }}>Format PDF atau DOCX • Maksimal 10 MB</p>
                 </>
               )}
@@ -178,8 +205,8 @@ function ModalUnggahDokumen({ onClose, onSave, showToast }) {
           </div>
           <div className="portal-modal-footer">
             <button type="button" className="btn-secondary" style={{ width: 'auto', padding: '9px 18px' }} onClick={onClose}>Batal</button>
-            <button type="submit" className="btn-primary-glow" style={{ padding: '9px 22px' }}>
-              <Upload size={14} style={{ marginRight: '6px' }} /> Unggah Dokumen
+            <button type="submit" className="btn-primary-glow" style={{ padding: '9px 22px' }} disabled={uploading}>
+              <Upload size={14} style={{ marginRight: '6px' }} /> {uploading ? 'Mengunggah...' : 'Unggah Dokumen'}
             </button>
           </div>
         </form>
@@ -194,14 +221,29 @@ export default function PDVault({ showToast }) {
   const [editingDoc, setEditingDoc] = useState(null);
   const [showUnggahModal, setShowUnggahModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [documents, setDocuments] = useState([]);
 
-  const [documents, setDocuments] = useState([
-    { id: 1, nama: 'LPJ SIOMAS Fest 2024', label: 'LPJ', divisi: 'Acara', diperbarui: '18 Nov 2024', ukuran: '2.4 MB', status: 'Approved', statusType: 'green', tags: ['2024', 'Divisi Acara'] },
-    { id: 2, nama: 'Proposal Workshop Leadership', label: 'Proposal', divisi: 'PSDM', diperbarui: '15 Nov 2024', ukuran: '1.8 MB', status: 'Approved', statusType: 'green', tags: ['PSDM', 'Pelatihan'] },
-    { id: 3, nama: 'Surat Peminjaman Aula', label: 'Surat', divisi: 'Sekretariat', diperbarui: '12 Nov 2024', ukuran: '540 KB', status: 'Active', statusType: 'green', tags: ['Sarpras', 'Aula'] },
-    { id: 4, nama: 'Sipakamase Periode Oktober', label: 'Sipakamase', divisi: 'Bendahara', diperbarui: '02 Nov 2024', ukuran: '3.1 MB', status: 'Approved', statusType: 'green', tags: ['Keuangan', 'Audit'] },
-    { id: 5, nama: 'LPJ Bakti Sosial', label: 'LPJ', divisi: 'Humas', diperbarui: '28 Okt 2024', ukuran: '4.5 MB', status: 'Revision', statusType: 'orange', tags: ['Baksos', 'Revisi'] }
-  ]);
+  const loadDocuments = async () => {
+    const res = await documentsApi.getAll();
+    if (res.ok && res.data?.data) {
+      const mapped = res.data.data.map((d) => ({
+        id: d.id,
+        nama: d.nama_berkas,
+        label: d.kategori,
+        divisi: d.uploader_name || 'Pengurus',
+        diperbarui: 'Terbaru',
+        ukuran: 'PDF',
+        status: d.status,
+        statusType: d.status === 'Approved' ? 'green' : 'orange',
+        tags: [d.kategori]
+      }));
+      setDocuments(mapped);
+    }
+  };
+
+  useEffect(() => {
+    loadDocuments();
+  }, []);
 
   const filterOptions = ['Semua', 'LPJ', 'Proposal', 'Surat', 'Sipakamase'];
 
@@ -219,23 +261,13 @@ export default function PDVault({ showToast }) {
     showToast(`Kategorisasi "${updatedDoc.nama}" berhasil diperbarui.`, 'success');
   };
 
-  const handleSaveUnggah = (data) => {
-    const newDoc = {
-      id: documents.length + 1,
-      nama: data.nama,
-      label: data.label,
-      divisi: data.divisi.replace('Divisi ', ''),
-      diperbarui: 'Baru saja',
-      ukuran: '—',
-      status: 'Pending',
-      statusType: 'gray',
-      tags: []
-    };
-    setDocuments([newDoc, ...documents]);
-  };
-
-  const handleDownload = (doc) => {
-    showToast(`Mengunduh ${doc.nama} (${doc.ukuran})...`, 'success');
+  const handleDownload = async (doc) => {
+    const ok = await documentsApi.download(doc.id, doc.nama);
+    if (ok) {
+      showToast(`Mengunduh ${doc.nama}...`, 'success');
+    } else {
+      showToast('Gagal mengunduh berkas.', 'error');
+    }
   };
 
   return (
@@ -249,9 +281,6 @@ export default function PDVault({ showToast }) {
             <p className="page-subtitle">Kelola dan temukan dokumen organisasi dalam satu tempat.</p>
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
-            <button type="button" className="portal-outline-btn" style={{ width: 'auto', display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px' }} onClick={() => showToast('Mengunduh bundel arsip dokumen aktif...', 'success')}>
-              <Download size={16} /> Unduh Bundel
-            </button>
             <button type="button" className="btn-primary-glow" onClick={() => setShowUnggahModal(true)}>
               <Upload size={16} style={{ marginRight: '6px' }} /> Unggah Dokumen
             </button>
@@ -281,7 +310,7 @@ export default function PDVault({ showToast }) {
                 className={`filter-pill ${activeFilter === filter ? 'active' : ''}`}
                 onClick={() => setActiveFilter(filter)}
               >
-                {filter === 'Semua' ? 'Semua 24' : filter}
+                {filter === 'Semua' ? `Semua ${documents.length}` : filter}
               </button>
             ))}
           </div>
@@ -294,9 +323,9 @@ export default function PDVault({ showToast }) {
               <tr>
                 <th>Nama Dokumen</th>
                 <th>Label</th>
-                <th>Divisi</th>
+                <th>Pengunggah</th>
                 <th>Diperbarui</th>
-                <th>Ukuran</th>
+                <th>Format</th>
                 <th>Status</th>
                 <th style={{ textAlign: 'right' }}>Aksi</th>
               </tr>
@@ -309,7 +338,7 @@ export default function PDVault({ showToast }) {
                       <div className="doc-icon-wrap"><FileText size={18} /></div>
                       <div>
                         <div className="doc-title-text">{doc.nama}</div>
-                        <div className="doc-sub-text">PDF Document</div>
+                        <div className="doc-sub-text">Dokumen Organisasi</div>
                       </div>
                     </div>
                   </td>
@@ -341,7 +370,7 @@ export default function PDVault({ showToast }) {
               )) : (
                 <tr>
                   <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: '#94A3B8' }}>
-                    Tidak ada dokumen yang sesuai dengan pencarian.
+                    Belum ada dokumen di Repository Vault.
                   </td>
                 </tr>
               )}
@@ -351,13 +380,11 @@ export default function PDVault({ showToast }) {
 
         {/* Pagination */}
         <div className="table-footer-pagination">
-          <span>Menampilkan 1-{filteredDocs.length} dari 24 dokumen</span>
+          <span>Menampilkan {filteredDocs.length} dari {documents.length} dokumen</span>
           <div className="pagination-btn-group">
             <button type="button" className="page-num-btn" disabled><ChevronLeft size={14} /></button>
-            {[1, 2, 3].map((p) => (
-              <button key={p} type="button" className={`page-num-btn ${currentPage === p ? 'active' : ''}`} onClick={() => setCurrentPage(p)}>{p}</button>
-            ))}
-            <button type="button" className="page-num-btn"><ChevronRight size={14} /></button>
+            <button type="button" className={`page-num-btn ${currentPage === 1 ? 'active' : ''}`} onClick={() => setCurrentPage(1)}>1</button>
+            <button type="button" className="page-num-btn" disabled><ChevronRight size={14} /></button>
           </div>
         </div>
       </div>
@@ -375,7 +402,7 @@ export default function PDVault({ showToast }) {
       {showUnggahModal && (
         <ModalUnggahDokumen
           onClose={() => setShowUnggahModal(false)}
-          onSave={handleSaveUnggah}
+          onUploaded={loadDocuments}
           showToast={showToast}
         />
       )}

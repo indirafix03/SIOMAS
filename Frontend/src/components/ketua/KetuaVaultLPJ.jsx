@@ -1,13 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Search, FileText, Edit3, Download, Trash2, Upload, X } from 'lucide-react';
-
-const initialDocs = [
-  { id: 1, nama: 'LPJ SIOMAS Fest 2024', label: 'LPJ', divisi: 'Acara', diperbarui: '18 Nov 2024', ukuran: '2.4 MB', status: 'Approved', statusType: 'green', tags: ['2024', 'Divisi Acara'] },
-  { id: 2, nama: 'Proposal Workshop Leadership', label: 'Proposal', divisi: 'PSDM', diperbarui: '15 Nov 2024', ukuran: '1.8 MB', status: 'Approved', statusType: 'green', tags: ['PSDM', 'Pelatihan'] },
-  { id: 3, nama: 'Surat Peminjaman Aula', label: 'Surat', divisi: 'Sekretariat', diperbarui: '12 Nov 2024', ukuran: '540 KB', status: 'Active', statusType: 'green', tags: ['Sarpras', 'Aula'] },
-  { id: 4, nama: 'Sipakamase Periode Oktober', label: 'Sipakamase', divisi: 'Bendahara', diperbarui: '02 Nov 2024', ukuran: '3.1 MB', status: 'Approved', statusType: 'green', tags: ['Keuangan', 'Audit'] },
-  { id: 5, nama: 'LPJ Bakti Sosial', label: 'LPJ', divisi: 'Humas', diperbarui: '28 Okt 2024', ukuran: '4.5 MB', status: 'Revision', statusType: 'orange', tags: ['Baksos', 'Revisi'] }
-];
+import { documentsApi } from '../../services/api.js';
 
 const labelColors = {
   LPJ: { bg: '#EEF2FF', color: '#4F46E5' },
@@ -18,7 +11,7 @@ const labelColors = {
 
 // Modal: Atur Label & Kategorisasi
 function ModalAturLabel({ doc, onClose, onSave }) {
-  const [label, setLabel] = useState(doc?.label || '');
+  const [label, setLabel] = useState(doc?.label || 'LPJ');
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState(doc?.tags || []);
 
@@ -34,7 +27,7 @@ function ModalAturLabel({ doc, onClose, onSave }) {
       <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '500px', padding: '28px', boxShadow: '0 24px 60px -12px rgba(0,0,0,0.2)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
           <div>
-            <h2 style={{ fontSize: '18px', fontWeight: 700 }}>Atur Label & Kategorisasi</h2>
+            <h2 style={{ fontSize: '18px', fontWeight: 700 }}>Atur Label &amp; Kategorisasi</h2>
             <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>Kategorikan dokumen agar mudah ditemukan.</p>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}><X size={20} /></button>
@@ -84,8 +77,8 @@ function ModalHapus({ doc, onClose, onConfirm }) {
       <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '440px', padding: '28px', boxShadow: '0 24px 60px -12px rgba(0,0,0,0.2)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
           <div>
-            <h2 style={{ fontSize: '18px', fontWeight: 700 }}>Arsipkan berkas?</h2>
-            <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>Tindakan ini akan menyembunyikan berkas dari repository.</p>
+            <h2 style={{ fontSize: '18px', fontWeight: 700 }}>Hapus berkas?</h2>
+            <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>Tindakan ini akan menghapus berkas dari repository aktif.</p>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}><X size={20} /></button>
         </div>
@@ -95,7 +88,7 @@ function ModalHapus({ doc, onClose, onConfirm }) {
             <Trash2 size={20} />
           </div>
           <p style={{ fontSize: '13.5px', color: '#0F172A' }}>
-            <strong>{doc?.nama}</strong> akan dipindahkan ke arsip dan dapat dipulihkan oleh admin selama 30 hari.
+            <strong>{doc?.nama}</strong> akan dihapus dari daftar arsip aktif.
           </p>
         </div>
 
@@ -103,7 +96,7 @@ function ModalHapus({ doc, onClose, onConfirm }) {
           <button onClick={onClose} className="btn-secondary" style={{ width: 'auto', padding: '10px 20px' }}>Batal</button>
           <button style={{ background: '#EF4444', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 20px', cursor: 'pointer', fontSize: '13.5px', fontWeight: 600, fontFamily: 'inherit' }}
             onClick={() => { onConfirm(); onClose(); }}>
-            Ya, Arsipkan/Hapus
+            Ya, Hapus
           </button>
         </div>
       </div>
@@ -111,51 +104,134 @@ function ModalHapus({ doc, onClose, onConfirm }) {
   );
 }
 
-// Modal: Bundel Sipakamase
-function ModalBundelSipakamase({ onClose }) {
+// Modal: Unggah Dokumen Baru
+function ModalUnggah({ onClose, onUploaded, showToast }) {
+  const [form, setForm] = useState({ nama: '', divisi: 'Divisi Acara', label: 'LPJ', file: null, fileName: '' });
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.nama.trim() || !form.file) {
+      showToast && showToast('Harap isi nama dokumen dan pilih berkas.', 'error');
+      return;
+    }
+    setUploading(true);
+    const namaBerkas = `${form.nama.trim()} (${form.divisi})`;
+    const res = await documentsApi.upload(form.file, namaBerkas, form.label);
+    setUploading(false);
+
+    if (res.ok) {
+      showToast && showToast(`Dokumen "${form.nama}" berhasil diunggah!`, 'success');
+      onUploaded();
+      onClose();
+    } else {
+      showToast && showToast(res.data?.message || 'Gagal mengunggah dokumen.', 'error');
+    }
+  };
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
       <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '480px', padding: '28px', boxShadow: '0 24px 60px -12px rgba(0,0,0,0.2)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
           <div>
-            <h2 style={{ fontSize: '18px', fontWeight: 700 }}>Siapkan Bundel Sipakamase</h2>
-            <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>Dokumen aktif akan dikompresi menjadi berkas ZIP</p>
+            <h2 style={{ fontSize: '18px', fontWeight: 700 }}>Unggah Dokumen Baru</h2>
+            <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>Tambahkan dokumen langsung ke Repository Vault.</p>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}><X size={20} /></button>
         </div>
 
-        <div style={{ display: 'flex', gap: '14px', alignItems: 'center', padding: '16px', background: '#F8FAFC', borderRadius: '10px', marginBottom: '16px' }}>
-          <div style={{ width: '48px', height: '48px', background: '#EEF2FF', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4F46E5', flexShrink: 0 }}>
-            <Download size={24} />
+        <form onSubmit={handleSubmit}>
+          <div className="form-group" style={{ marginBottom: '14px' }}>
+            <label className="form-label">Nama Dokumen</label>
+            <input className="form-input" placeholder="Contoh: LPJ Kegiatan Tahunan" value={form.nama} onChange={e => setForm({ ...form, nama: e.target.value })} required />
           </div>
-          <div>
-            <div style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>24 dokumen siap diunduh</div>
-            <div style={{ fontSize: '12.5px', color: '#64748B' }}>Estimasi ukuran bundel 48.6 MB</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+            <div className="form-group">
+              <label className="form-label">Kategori</label>
+              <select className="form-select" value={form.label} onChange={e => setForm({ ...form, label: e.target.value })}>
+                <option>LPJ</option>
+                <option>Proposal</option>
+                <option>Surat</option>
+                <option>Sipakamase</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Divisi</label>
+              <select className="form-select" value={form.divisi} onChange={e => setForm({ ...form, divisi: e.target.value })}>
+                <option>Divisi Acara</option>
+                <option>PSDM</option>
+                <option>Sekretariat</option>
+                <option>Bendahara</option>
+                <option>Humas</option>
+              </select>
+            </div>
           </div>
-        </div>
 
-        <div style={{ height: '8px', background: '#E2E8F0', borderRadius: '999px', overflow: 'hidden', marginBottom: '24px' }}>
-          <div style={{ height: '100%', width: '65%', background: 'linear-gradient(90deg, #4F46E5, #818CF8)', borderRadius: '999px' }} />
-        </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.zip"
+            style={{ display: 'none' }}
+            onChange={e => {
+              const f = e.target.files?.[0];
+              if (f) setForm({ ...form, file: f, fileName: f.name });
+            }}
+          />
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-          <button onClick={onClose} className="btn-secondary" style={{ width: 'auto', padding: '10px 20px' }}>Batal</button>
-          <button className="btn-primary" style={{ width: 'auto', margin: 0 }} onClick={() => { alert('Proses kompresi dimulai!'); onClose(); }}>
-            Mulai Kompresi & Unduh
-          </button>
-        </div>
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            style={{ border: '2px dashed #CBD5E1', borderRadius: '12px', padding: '28px', textAlign: 'center', cursor: 'pointer', background: form.fileName ? '#F0FDF4' : '#FAFAFA', marginBottom: '20px' }}
+          >
+            <Upload size={22} color="#4F46E5" style={{ marginBottom: '8px' }} />
+            {form.fileName ? (
+              <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#10B981' }}>{form.fileName} ✓</div>
+            ) : (
+              <div style={{ fontSize: '13px', color: '#64748B' }}>Klik untuk pilih berkas (.pdf / .docx / .zip)</div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <button type="button" onClick={onClose} className="btn-secondary" style={{ width: 'auto', padding: '10px 20px' }}>Batal</button>
+            <button type="submit" className="btn-primary" style={{ width: 'auto', margin: 0 }} disabled={uploading}>
+              {uploading ? 'Mengunggah...' : 'Unggah'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
 }
 
-export default function KetuaVaultLPJ({ onNavigate, showToast }) {
+export default function KetuaVaultLPJ({ showToast }) {
   const [activeFilter, setActiveFilter] = useState('Semua');
   const [searchQuery, setSearchQuery] = useState('');
-  const [documents, setDocuments] = useState(initialDocs);
+  const [documents, setDocuments] = useState([]);
   const [modalLabel, setModalLabel] = useState(null);
   const [modalHapus, setModalHapus] = useState(null);
-  const [showBundel, setShowBundel] = useState(false);
+  const [showUnggah, setShowUnggah] = useState(false);
+
+  const loadDocuments = async () => {
+    const res = await documentsApi.getAll();
+    if (res.ok && res.data?.data) {
+      const mapped = res.data.data.map((d) => ({
+        id: d.id,
+        nama: d.nama_berkas,
+        label: d.kategori,
+        divisi: d.uploader_name || 'Pengurus',
+        diperbarui: 'Terbaru',
+        ukuran: 'PDF',
+        status: d.status,
+        statusType: d.status === 'Approved' ? 'green' : 'orange',
+        tags: [d.kategori]
+      }));
+      setDocuments(mapped);
+    }
+  };
+
+  useEffect(() => {
+    loadDocuments();
+  }, []);
 
   const filters = ['Semua', 'LPJ', 'Proposal', 'Surat', 'Sipakamase'];
 
@@ -166,6 +242,25 @@ export default function KetuaVaultLPJ({ onNavigate, showToast }) {
       doc.label.toLowerCase().includes(searchQuery.toLowerCase());
     return matchFilter && matchSearch;
   });
+
+  const handleDelete = async (doc) => {
+    const res = await documentsApi.delete(doc.id);
+    if (res.ok) {
+      showToast && showToast(`Dokumen "${doc.nama}" berhasil dihapus`, 'success');
+      loadDocuments();
+    } else {
+      showToast && showToast(res.data?.message || 'Gagal menghapus dokumen', 'error');
+    }
+  };
+
+  const handleDownload = async (doc) => {
+    const ok = await documentsApi.download(doc.id, doc.nama);
+    if (ok) {
+      showToast && showToast(`Mengunduh "${doc.nama}"...`, 'success');
+    } else {
+      showToast && showToast('Gagal mengunduh berkas.', 'error');
+    }
+  };
 
   return (
     <div>
@@ -183,13 +278,16 @@ export default function KetuaVaultLPJ({ onNavigate, showToast }) {
         <ModalHapus
           doc={modalHapus}
           onClose={() => setModalHapus(null)}
-          onConfirm={() => {
-            setDocuments(prev => prev.filter(d => d.id !== modalHapus.id));
-            showToast && showToast('Dokumen berhasil diarsipkan', 'success');
-          }}
+          onConfirm={() => handleDelete(modalHapus)}
         />
       )}
-      {showBundel && <ModalBundelSipakamase onClose={() => setShowBundel(false)} />}
+      {showUnggah && (
+        <ModalUnggah
+          onClose={() => setShowUnggah(false)}
+          onUploaded={loadDocuments}
+          showToast={showToast}
+        />
+      )}
 
       {/* Header */}
       <div className="page-header-block" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
@@ -199,12 +297,8 @@ export default function KetuaVaultLPJ({ onNavigate, showToast }) {
           <p className="page-subtitle">Kelola dan temukan dokumen organisasi dalam satu tempat.</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px', width: 'auto', padding: '10px 16px' }}
-            onClick={() => setShowBundel(true)}>
-            <Download size={16} /> Unduh Bundel
-          </button>
           <button className="btn-primary" style={{ width: 'auto', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
-            onClick={() => onNavigate('k-unggah-lpj')}>
+            onClick={() => setShowUnggah(true)}>
             <Upload size={16} /> Unggah Dokumen
           </button>
         </div>
@@ -245,13 +339,13 @@ export default function KetuaVaultLPJ({ onNavigate, showToast }) {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
-              {['NAMA DOKUMEN', 'LABEL', 'DIVISI', 'DIPERBARUI', 'UKURAN', 'STATUS', ''].map(h => (
+              {['NAMA DOKUMEN', 'LABEL', 'PENGUNGGAH', 'DIPERBARUI', 'FORMAT', 'STATUS', ''].map(h => (
                 <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {filtered.map(doc => {
+            {filtered.length > 0 ? filtered.map(doc => {
               const lc = labelColors[doc.label] || { bg: '#F1F5F9', color: '#64748B' };
               return (
                 <tr key={doc.id} style={{ borderBottom: '1px solid #F8FAFC' }} onMouseEnter={e => e.currentTarget.style.background = '#FAFAFA'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -262,7 +356,7 @@ export default function KetuaVaultLPJ({ onNavigate, showToast }) {
                       </div>
                       <div>
                         <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0F172A' }}>{doc.nama}</div>
-                        <div style={{ fontSize: '11.5px', color: '#94A3B8' }}>PDF Document</div>
+                        <div style={{ fontSize: '11.5px', color: '#94A3B8' }}>Dokumen Organisasi</div>
                       </div>
                     </div>
                   </td>
@@ -283,33 +377,29 @@ export default function KetuaVaultLPJ({ onNavigate, showToast }) {
                       <button title="Atur Label" onClick={() => setModalLabel(doc)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: '#64748B', borderRadius: '6px' }}>
                         <Edit3 size={16} />
                       </button>
-                      <button title="Unduh" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: '#64748B', borderRadius: '6px' }}>
+                      <button title="Unduh" onClick={() => handleDownload(doc)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: '#64748B', borderRadius: '6px' }}>
                         <Download size={16} />
                       </button>
-                      <button title="Arsipkan" onClick={() => setModalHapus(doc)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: '#64748B', borderRadius: '6px' }}>
+                      <button title="Hapus" onClick={() => setModalHapus(doc)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: '#64748B', borderRadius: '6px' }}>
                         <Trash2 size={16} />
                       </button>
                     </div>
                   </td>
                 </tr>
               );
-            })}
+            }) : (
+              <tr>
+                <td colSpan="7" style={{ padding: '40px', textAlign: 'center', color: '#94A3B8', fontSize: '13.5px' }}>
+                  Belum ada dokumen di Repository Vault.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
 
         {/* Pagination */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderTop: '1px solid #F1F5F9' }}>
-          <span style={{ fontSize: '13px', color: '#64748B' }}>Menampilkan 1–{filtered.length} dari {documents.length} dokumen</span>
-          <div style={{ display: 'flex', gap: '4px' }}>
-            {[1, 2, 3].map(p => (
-              <button key={p} style={{ width: '32px', height: '32px', borderRadius: '8px', border: p === 1 ? 'none' : '1px solid #E2E8F0', background: p === 1 ? '#4F46E5' : '#fff', color: p === 1 ? '#fff' : '#64748B', cursor: 'pointer', fontSize: '13px', fontFamily: 'inherit', fontWeight: 600 }}>
-                {p}
-              </button>
-            ))}
-            <button style={{ width: '32px', height: '32px', borderRadius: '8px', border: '1px solid #E2E8F0', background: '#fff', color: '#64748B', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6"/></svg>
-            </button>
-          </div>
+          <span style={{ fontSize: '13px', color: '#64748B' }}>Menampilkan {filtered.length} dari {documents.length} dokumen</span>
         </div>
       </div>
     </div>

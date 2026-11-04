@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Calendar as CalendarIcon,
   FileText,
@@ -10,12 +10,38 @@ import {
   PlusCircle,
   X
 } from 'lucide-react';
+import {
+  announcementsApi,
+  schedulesApi,
+  documentsApi,
+  lpjApi,
+  interUkmApi
+} from '../../services/api.js';
+
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const MONTHS_FULL = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+];
+const DAYS_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+function formatTodayHeader() {
+  const now = new Date();
+  return `${DAYS_ID[now.getDay()]}, ${now.getDate()} ${MONTHS_FULL[now.getMonth()]} ${now.getFullYear()}`;
+}
+
+function formatDateTimeLabel(isoStr) {
+  if (!isoStr) return 'Baru saja';
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return isoStr;
+  return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
 
 // Modal: Buat Pengumuman Baru
-function ModalBuatPengumuman({ onClose, onSubmit }) {
+function ModalBuatPengumuman({ onClose, onSubmit, submitting }) {
   const [form, setForm] = useState({
     judul: '',
-    kategori: '',
+    kategori: 'Umum',
     metodePub: 'Publikasikan Sekarang',
     tanggalPub: '',
     waktuPub: '',
@@ -61,7 +87,6 @@ function ModalBuatPengumuman({ onClose, onSubmit }) {
           <div className="form-group">
             <label className="form-label">Kategori</label>
             <select className="form-select" name="kategori" value={form.kategori} onChange={handleChange}>
-              <option value="">Pilih kategori</option>
               <option value="Manajemen">Manajemen</option>
               <option value="Acara">Acara</option>
               <option value="Administrasi">Administrasi</option>
@@ -147,8 +172,14 @@ function ModalBuatPengumuman({ onClose, onSubmit }) {
             <button type="button" className="btn-secondary" onClick={onClose} style={{ width: 'auto', padding: '10px 20px' }}>
               Batal Simpan
             </button>
-            <button type="button" className="btn-primary" style={{ width: 'auto', margin: 0 }} onClick={() => { onSubmit(form); onClose(); }}>
-              Publikasikan
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={submitting}
+              style={{ width: 'auto', margin: 0 }}
+              onClick={() => onSubmit(form)}
+            >
+              {submitting ? 'Mempublikasikan...' : 'Publikasikan'}
             </button>
           </div>
         </div>
@@ -157,35 +188,129 @@ function ModalBuatPengumuman({ onClose, onSubmit }) {
   );
 }
 
-export default function KetuaBeranda({ currentUser, onNavigate, onSelectAnnouncement }) {
+export default function KetuaBeranda({ currentUser, onNavigate, onSelectAnnouncement, showToast }) {
   const [showModalPengumuman, setShowModalPengumuman] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [announcements, setAnnouncements] = useState([]);
+  const [schedules, setSchedules] = useState([]);
+  const [stats, setStats] = useState({
+    agendaCount: 0,
+    docsActiveCount: 0,
+    docsPendingCount: 0,
+    interUkmApprovedCount: 0,
+    interUkmPendingCount: 0,
+    participationPct: 0
+  });
 
-  const firstName = currentUser?.nama ? currentUser.nama.split(' ')[0] : 'Ardi';
+  const firstName = currentUser?.nama ? currentUser.nama.split(' ')[0] : 'Admin';
 
-  const announcements = [
-    {
-      id: 1, judul: 'Rapat Koordinasi Akhir Semester', isi: 'Rapat evaluasi program kerja akan dilaksanakan Jumat mendatang di Aula Gedung C.', is_important: true, category: 'Manajemen', time: 'Hari ini, 09:24', is_read: false,
-      tanggal: 'Jumat, 22 November 2024', waktu: '15:30–17:30 WITA', lokasi: 'Aula Gedung C', peserta: 'Seluruh anggota aktif', publisher: 'Divisi Manajemen • 18 November 2024, 09:24 WITA',
-      authorName: 'Nabila Putri', authorRole: 'Ketua UKM SIOMAS'
-    },
-    {
-      id: 2, judul: 'Pendaftaran Volunteer SIOMAS Fest 2024', isi: 'Kami membuka kesempatan bagi anggota untuk menjadi bagian dari acara terbesar tahun ini.', is_important: false, category: 'Acara', time: 'Kemarin, 15:40', is_read: true,
-      tanggal: '25–27 November 2024', waktu: '08:00–18:00 WITA', lokasi: 'Lapangan Utama Kampus', peserta: 'Anggota terdaftar', publisher: 'Divisi Acara • 17 November 2024, 15:40 WITA',
-      authorName: 'Rian Maulana', authorRole: 'Koordinator Acara'
-    },
-    {
-      id: 3, judul: 'Pembaruan Panduan Administrasi & LPJ', isi: 'Panduan terbaru mengenai pengajuan proposal kegiatan dan pelaporan LPJ periode akhir kini tersedia.', is_important: false, category: 'Administrasi', time: '15 Nov 2024', is_read: true,
-      tanggal: 'Mulai berlaku 15 Nov 2024', waktu: 'Fleksibel', lokasi: 'Online Repository', peserta: 'Seluruh Divisi', publisher: 'Sekretariat • 15 November 2024',
-      authorName: 'Sarah Amalia', authorRole: 'Sekretaris Jenderal'
+  const loadDashboardData = useCallback(async () => {
+    const [annRes, schedRes, docsRes, lpjRes, interFeedRes, interPendRes] = await Promise.all([
+      announcementsApi.getAll(),
+      schedulesApi.getAll(),
+      documentsApi.getAll(),
+      lpjApi.getPendingValidation(),
+      interUkmApi.getFeed(),
+      interUkmApi.getPending()
+    ]);
+
+    const annList = annRes.ok && annRes.data?.data ? annRes.data.data.map(item => ({
+      id: item.id,
+      judul: item.judul,
+      isi: item.isi,
+      is_important: item.is_important,
+      category: item.is_important ? 'Manajemen' : 'Umum',
+      time: formatDateTimeLabel(item.created_at),
+      is_read: item.is_read !== undefined ? item.is_read : true,
+      tanggal: formatDateTimeLabel(item.created_at),
+      waktu: 'Sesuai jadwal',
+      lokasi: 'Kampus SIOMAS',
+      peserta: 'Seluruh anggota aktif',
+      publisher: `${item.author_name || 'Admin SIOMAS'} • ${formatDateTimeLabel(item.created_at)}`,
+      authorName: item.author_name || 'Admin SIOMAS',
+      authorRole: 'Pengurus / Ketua UKM'
+    })) : [];
+
+    const schedList = schedRes.ok && schedRes.data?.data ? schedRes.data.data : [];
+    const docsList = docsRes.ok && docsRes.data?.data ? docsRes.data.data : [];
+    const lpjPendingList = lpjRes.ok && lpjRes.data?.data ? lpjRes.data.data : [];
+    const interFeedList = interFeedRes.ok && interFeedRes.data?.data ? interFeedRes.data.data : [];
+    const interPendList = interPendRes.ok && interPendRes.data?.data ? interPendRes.data.data : [];
+
+    setAnnouncements(annList);
+    setSchedules(schedList);
+
+    const readCount = annList.filter(a => a.is_read).length;
+    const participation = annList.length > 0 ? Math.round((readCount / annList.length) * 100) : 0;
+
+    setStats({
+      agendaCount: schedList.length,
+      docsActiveCount: docsList.length,
+      docsPendingCount: lpjPendingList.length,
+      interUkmApprovedCount: interFeedList.length,
+      interUkmPendingCount: interPendList.length,
+      participationPct: participation
+    });
+  }, []);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
+
+  const handleCreateAnnouncement = async (form) => {
+    if (!form.judul.trim() || !form.isi.trim()) {
+      if (showToast) showToast('Judul dan isi pengumuman wajib diisi!', 'error');
+      return;
     }
-  ];
+    setSubmitting(true);
+    const res = await announcementsApi.create({
+      judul: form.judul.trim(),
+      isi: form.isi.trim(),
+      is_important: form.isPenting,
+      notify_email: form.isPenting
+    });
+    setSubmitting(false);
+
+    if (res.ok) {
+      setShowModalPengumuman(false);
+      if (showToast) showToast('Pengumuman berhasil dipublikasikan!', 'success');
+      loadDashboardData();
+    } else {
+      if (showToast) showToast(res.data?.message || 'Gagal mempublikasikan pengumuman.', 'error');
+    }
+  };
+
+  const now = new Date();
+  const currentMonthName = `${MONTHS_FULL[now.getMonth()]} ${now.getFullYear()}`;
+  const todayDate = now.getDate();
+
+  const eventDaysInCurrentMonth = schedules
+    .map(s => new Date(s.waktu))
+    .filter(d => !isNaN(d.getTime()) && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear())
+    .map(d => d.getDate());
+
+  const upcomingEvents = schedules.slice(0, 3).map((s, idx) => {
+    const d = new Date(s.waktu);
+    const valid = !isNaN(d.getTime());
+    const colors = ['blue', 'purple', 'green'];
+    return {
+      id: s.id,
+      day: valid ? d.getDate() : '--',
+      month: valid ? MONTHS_SHORT[d.getMonth()] : '---',
+      title: s.judul_kegiatan,
+      time: valid ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : '-',
+      place: s.lokasi || 'Kampus',
+      color: colors[idx % colors.length]
+    };
+  });
 
   return (
     <div>
       {showModalPengumuman && (
         <ModalBuatPengumuman
           onClose={() => setShowModalPengumuman(false)}
-          onSubmit={() => alert('Pengumuman berhasil dipublikasikan!')}
+          onSubmit={handleCreateAnnouncement}
+          submitting={submitting}
         />
       )}
 
@@ -193,7 +318,7 @@ export default function KetuaBeranda({ currentUser, onNavigate, onSelectAnnounce
       <div className="page-header-block" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <span style={{ fontSize: '13px', fontWeight: 600, color: '#4F46E5', display: 'block', marginBottom: '4px' }}>
-            Senin, 18 November 2024
+            {formatTodayHeader()}
           </span>
           <h1 className="page-title">Selamat datang, {firstName}</h1>
           <p className="page-subtitle">Berikut ringkasan aktivitas organisasi kamu hari ini.</p>
@@ -215,32 +340,32 @@ export default function KetuaBeranda({ currentUser, onNavigate, onSelectAnnounce
           <div className="portal-stat-icon-wrap portal-stat-icon-purple"><CalendarIcon size={22} /></div>
           <div className="portal-stat-info">
             <span className="portal-stat-label">Agenda mendatang</span>
-            <span className="portal-stat-number">8</span>
-            <span className="portal-stat-subtext purple">+2 minggu ini</span>
+            <span className="portal-stat-number">{stats.agendaCount}</span>
+            <span className="portal-stat-subtext purple">{stats.agendaCount} terjadwal</span>
           </div>
         </div>
         <div className="portal-stat-card">
           <div className="portal-stat-icon-wrap portal-stat-icon-green"><FileText size={22} /></div>
           <div className="portal-stat-info">
             <span className="portal-stat-label">Dokumen aktif</span>
-            <span className="portal-stat-number">24</span>
-            <span className="portal-stat-subtext green">3 menunggu validasi</span>
+            <span className="portal-stat-number">{stats.docsActiveCount}</span>
+            <span className="portal-stat-subtext green">{stats.docsPendingCount} menunggu validasi</span>
           </div>
         </div>
         <div className="portal-stat-card">
           <div className="portal-stat-icon-wrap portal-stat-icon-yellow"><Users size={22} /></div>
           <div className="portal-stat-info">
             <span className="portal-stat-label">Kolaborasi UKM</span>
-            <span className="portal-stat-number">6</span>
-            <span className="portal-stat-subtext yellow">2 permintaan baru</span>
+            <span className="portal-stat-number">{stats.interUkmApprovedCount}</span>
+            <span className="portal-stat-subtext yellow">{stats.interUkmPendingCount} permintaan baru</span>
           </div>
         </div>
         <div className="portal-stat-card">
           <div className="portal-stat-icon-wrap portal-stat-icon-teal"><Eye size={22} /></div>
           <div className="portal-stat-info">
             <span className="portal-stat-label">Tingkat partisipasi</span>
-            <span className="portal-stat-number">87%</span>
-            <span className="portal-stat-subtext teal">+5% dari bulan lalu</span>
+            <span className="portal-stat-number">{stats.participationPct}%</span>
+            <span className="portal-stat-subtext teal">{announcements.length} pengumuman aktif</span>
           </div>
         </div>
       </div>
@@ -254,32 +379,40 @@ export default function KetuaBeranda({ currentUser, onNavigate, onSelectAnnounce
               <h3 className="portal-card-title">Pengumuman Terbaru</h3>
               <p className="portal-card-subtitle">Informasi penting untuk anggota organisasi</p>
             </div>
-            <button type="button" className="portal-link-btn" onClick={() => onSelectAnnouncement && onSelectAnnouncement(announcements[0])}>
-              Lihat semua <ChevronRight size={14} />
-            </button>
+            {announcements.length > 0 && (
+              <button type="button" className="portal-link-btn" onClick={() => onSelectAnnouncement && onSelectAnnouncement(announcements[0])}>
+                Lihat semua <ChevronRight size={14} />
+              </button>
+            )}
           </div>
 
           <div className="announcement-list">
-            {announcements.map(item => (
-              <div key={item.id} className="announcement-item-card" onClick={() => onSelectAnnouncement && onSelectAnnouncement(item)}>
-                <div className={`announcement-icon-badge ${item.is_important ? 'announcement-icon-red' : item.category === 'Acara' ? 'announcement-icon-blue' : 'announcement-icon-gray'}`}>
-                  {item.category === 'Administrasi' ? <FileText size={18} /> : <Bell size={18} />}
-                </div>
-                <div className="announcement-body">
-                  <div className="announcement-tags-row">
-                    {item.is_important && <span className="tag-badge tag-red">Penting</span>}
-                    <span className="tag-badge tag-gray">{item.category}</span>
-                    <span className="announcement-time">{item.time}</span>
-                    {!item.is_read && <span className="announcement-unread-dot" />}
-                  </div>
-                  <h4 className="announcement-title">{item.judul}</h4>
-                  <p className="announcement-snippet">{item.isi}</p>
-                  <button type="button" className="portal-link-btn" style={{ fontSize: '12px' }}>
-                    Lihat selengkapnya <ChevronRight size={13} />
-                  </button>
-                </div>
+            {announcements.length === 0 ? (
+              <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94A3B8', fontSize: '13.5px' }}>
+                Belum ada pengumuman yang dipublikasikan. Klik <strong>Buat Pengumuman</strong> untuk menambahkan.
               </div>
-            ))}
+            ) : (
+              announcements.map(item => (
+                <div key={item.id} className="announcement-item-card" onClick={() => onSelectAnnouncement && onSelectAnnouncement(item)}>
+                  <div className={`announcement-icon-badge ${item.is_important ? 'announcement-icon-red' : item.category === 'Acara' ? 'announcement-icon-blue' : 'announcement-icon-gray'}`}>
+                    {item.category === 'Administrasi' ? <FileText size={18} /> : <Bell size={18} />}
+                  </div>
+                  <div className="announcement-body">
+                    <div className="announcement-tags-row">
+                      {item.is_important && <span className="tag-badge tag-red">Penting</span>}
+                      <span className="tag-badge tag-gray">{item.category}</span>
+                      <span className="announcement-time">{item.time}</span>
+                      {!item.is_read && <span className="announcement-unread-dot" />}
+                    </div>
+                    <h4 className="announcement-title">{item.judul}</h4>
+                    <p className="announcement-snippet">{item.isi}</p>
+                    <button type="button" className="portal-link-btn" style={{ fontSize: '12px' }}>
+                      Lihat selengkapnya <ChevronRight size={13} />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -288,38 +421,40 @@ export default function KetuaBeranda({ currentUser, onNavigate, onSelectAnnounce
           <div className="portal-card-header">
             <div>
               <h3 className="portal-card-title">Agenda Terdekat</h3>
-              <p className="portal-card-subtitle">November 2024</p>
+              <p className="portal-card-subtitle">{currentMonthName}</p>
             </div>
           </div>
 
           <div className="mini-calendar-wrapper">
             <div className="mini-cal-grid">
-              {['Sen','Sel','Rab','Kam','Jum','Sab','Min'].map(d => (
+              {['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'].map(d => (
                 <span key={d} className="mini-cal-head">{d}</span>
               ))}
-              {[4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24].map(d => (
-                <span key={d} className={`mini-cal-cell${d===14?' active-today':''}${[19,20,22].includes(d)?' has-dot':''}`}>{d}</span>
+              {Array.from({ length: 21 }, (_, i) => i + 1).map(d => (
+                <span key={d} className={`mini-cal-cell${d === todayDate ? ' active-today' : ''}${eventDaysInCurrentMonth.includes(d) ? ' has-dot' : ''}`}>{d}</span>
               ))}
             </div>
           </div>
 
           <div className="upcoming-schedules-list">
-            {[
-              { day: 20, month: 'Nov', title: 'Workshop Kepemimpinan', time: '09:00', place: 'Aula Utama', color: 'blue' },
-              { day: 22, month: 'Nov', title: 'Rapat Koordinasi Divisi', time: '13:30', place: 'Ruang Sekretariat', color: 'purple' },
-              { day: 25, month: 'Nov', title: 'SIOMAS Fest 2024', time: '08:00', place: 'Lapangan Kampus', color: 'green' }
-            ].map((ev, i) => (
-              <div key={i} className="upcoming-schedule-item">
-                <div className={`schedule-date-badge ${ev.color}`}>
-                  <span className="schedule-date-day">{ev.day}</span>
-                  <span className="schedule-date-month">{ev.month}</span>
-                </div>
-                <div className="schedule-details">
-                  <h5 className="schedule-title">{ev.title}</h5>
-                  <span className="schedule-meta"><Clock size={12} /> {ev.time} • {ev.place}</span>
-                </div>
+            {upcomingEvents.length === 0 ? (
+              <div style={{ padding: '20px 12px', textAlign: 'center', color: '#94A3B8', fontSize: '13px' }}>
+                Belum ada agenda kegiatan terdekat.
               </div>
-            ))}
+            ) : (
+              upcomingEvents.map((ev) => (
+                <div key={ev.id} className="upcoming-schedule-item">
+                  <div className={`schedule-date-badge ${ev.color}`}>
+                    <span className="schedule-date-day">{ev.day}</span>
+                    <span className="schedule-date-month">{ev.month}</span>
+                  </div>
+                  <div className="schedule-details">
+                    <h5 className="schedule-title">{ev.title}</h5>
+                    <span className="schedule-meta"><Clock size={12} /> {ev.time} • {ev.place}</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           <button type="button" className="portal-outline-btn" onClick={() => onNavigate('k-kalender-agenda')}>

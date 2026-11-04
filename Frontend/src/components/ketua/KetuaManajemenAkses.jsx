@@ -1,34 +1,55 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Shield, Search, Check } from 'lucide-react';
-
-const initialMembers = [
-  { id: 1, nama: 'Dewi Lestari', nim: '2410511021', divisi: 'Divisi Acara', tanggal: '18 Nov 2024', status: 'Menunggu', initial: 'De' },
-  { id: 2, nama: 'Made Arya', nim: '2410511047', divisi: 'Divisi Humas', tanggal: '18 Nov 2024', status: 'Menunggu', initial: 'Ma' },
-  { id: 3, nama: 'Rafi Akbar', nim: '2410511082', divisi: 'Divisi PSDM', tanggal: '18 Nov 2024', status: 'Menunggu', initial: 'Ra' },
-  { id: 4, nama: 'Putri Maharani', nim: '2410511094', divisi: 'Sekretariat', tanggal: '18 Nov 2024', status: 'Menunggu', initial: 'Pu' }
-];
-
-const activeMembers = [
-  { id: 5, nama: 'Nabila Putri', nim: '2310511001', divisi: 'Ketua', tanggal: '10 Jan 2024', status: 'Aktif', initial: 'NP' },
-  { id: 6, nama: 'Rian Maulana', nim: '2310511012', divisi: 'Divisi Acara', tanggal: '10 Jan 2024', status: 'Aktif', initial: 'RM' },
-  { id: 7, nama: 'Sarah Amalia', nim: '2310511023', divisi: 'Sekretariat', tanggal: '10 Jan 2024', status: 'Aktif', initial: 'SA' }
-];
+import { apiFetch } from '../../services/api.js';
 
 export default function KetuaManajemenAkses({ showToast }) {
   const [activeTab, setActiveTab] = useState('Menunggu Verifikasi');
   const [search, setSearch] = useState('');
-  const [pendingMembers, setPendingMembers] = useState(initialMembers);
+  const [users, setUsers] = useState([]);
+
+  const loadUsers = async () => {
+    const res = await apiFetch('/auth/users');
+    if (res.ok && res.data?.data) {
+      const mapped = res.data.data.map((u) => {
+        const parts = (u.nama || 'U').trim().split(' ');
+        const initial = parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : (u.nama || 'U').slice(0, 2).toUpperCase();
+        return {
+          id: u.id,
+          nama: u.nama,
+          nim: u.nim || u.email,
+          divisi: u.job_desc || u.role,
+          tanggal: u.created_at ? u.created_at.split(' ')[0] : '-',
+          status: u.status_keanggotaan === 'Menunggu Verifikasi' ? 'Menunggu' : u.status_keanggotaan,
+          rawStatus: u.status_keanggotaan,
+          initial
+        };
+      });
+      setUsers(mapped);
+    }
+  };
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
 
   const tabs = ['Menunggu Verifikasi', 'Aktif', 'Alumni'];
 
-  const handleVerifikasi = (member) => {
-    setPendingMembers(prev => prev.filter(m => m.id !== member.id));
-    showToast && showToast(`Akun ${member.nama} berhasil diverifikasi & diaktifkan!`, 'success');
+  const handleVerifikasi = async (member) => {
+    const res = await apiFetch(`/auth/users/${member.id}/verify`, { method: 'PATCH' });
+    if (res.ok) {
+      showToast && showToast(`Akun ${member.nama} berhasil diverifikasi & diaktifkan!`, 'success');
+      loadUsers();
+    } else {
+      showToast && showToast(res.data?.message || 'Gagal memverifikasi akun', 'error');
+    }
   };
 
-  const displayed = activeTab === 'Menunggu Verifikasi'
-    ? pendingMembers.filter(m => m.nama.toLowerCase().includes(search.toLowerCase()) || m.nim.includes(search))
-    : activeMembers.filter(m => m.nama.toLowerCase().includes(search.toLowerCase()) || m.nim.includes(search));
+  const pendingCount = users.filter(m => m.rawStatus === 'Menunggu Verifikasi').length;
+  const activeCount = users.filter(m => m.rawStatus === 'Aktif').length;
+
+  const displayed = users
+    .filter(m => m.rawStatus === activeTab)
+    .filter(m => m.nama.toLowerCase().includes(search.toLowerCase()) || String(m.nim).toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div>
@@ -36,10 +57,10 @@ export default function KetuaManajemenAkses({ showToast }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px' }}>
         <div>
           <span style={{ fontSize: '12px', fontWeight: 700, color: '#4F46E5', letterSpacing: '0.06em', textTransform: 'uppercase' }}>ADMINISTRASI AKSES</span>
-          <h1 className="page-title">Verifikasi & Manajemen RBAC</h1>
+          <h1 className="page-title">Verifikasi &amp; Manajemen RBAC</h1>
           <p className="page-subtitle">Validasi pendaftar dan tetapkan hak akses berbasis peran.</p>
         </div>
-        <span style={{ fontSize: '13px', fontWeight: 700, color: '#D97706' }}>{pendingMembers.length} MENUNGGU</span>
+        <span style={{ fontSize: '13px', fontWeight: 700, color: '#D97706' }}>{pendingCount} MENUNGGU</span>
       </div>
 
       {/* Stats */}
@@ -50,7 +71,7 @@ export default function KetuaManajemenAkses({ showToast }) {
           </div>
           <div className="portal-stat-info">
             <span className="portal-stat-label">Total pengguna</span>
-            <span className="portal-stat-number">128</span>
+            <span className="portal-stat-number">{users.length}</span>
           </div>
         </div>
         <div className="portal-stat-card">
@@ -59,7 +80,7 @@ export default function KetuaManajemenAkses({ showToast }) {
           </div>
           <div className="portal-stat-info">
             <span className="portal-stat-label">Akun aktif</span>
-            <span className="portal-stat-number">113</span>
+            <span className="portal-stat-number">{activeCount}</span>
           </div>
         </div>
       </div>
@@ -95,7 +116,7 @@ export default function KetuaManajemenAkses({ showToast }) {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
-              {['CALON ANGGOTA', 'DIVISI', 'TANGGAL DAFTAR', 'STATUS', 'AKSI'].map(h => (
+              {['PENGGUNA', 'DIVISI / JABATAN', 'TANGGAL DAFTAR', 'STATUS', 'AKSI'].map(h => (
                 <th key={h} style={{ padding: '12px 20px', textAlign: 'left', fontSize: '11px', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.05em' }}>{h}</th>
               ))}
             </tr>
@@ -129,11 +150,11 @@ export default function KetuaManajemenAkses({ showToast }) {
                   {member.status === 'Menunggu' ? (
                     <button className="btn-primary" style={{ width: 'auto', margin: 0, fontSize: '13px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
                       onClick={() => handleVerifikasi(member)}>
-                      <Shield size={14} /> Verifikasi & Aktifkan Akun
+                      <Shield size={14} /> Verifikasi &amp; Aktifkan Akun
                     </button>
                   ) : (
                     <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#10B981', fontWeight: 600 }}>
-                      <Check size={14} /> Aktif
+                      <Check size={14} /> {member.status}
                     </span>
                   )}
                 </td>
@@ -142,7 +163,7 @@ export default function KetuaManajemenAkses({ showToast }) {
             {displayed.length === 0 && (
               <tr>
                 <td colSpan={5} style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontSize: '14px' }}>
-                  {activeTab === 'Menunggu Verifikasi' ? 'Semua akun sudah terverifikasi 🎉' : 'Tidak ada data ditemukan'}
+                  {activeTab === 'Menunggu Verifikasi' ? 'Belum ada pendaftar baru yang menunggu verifikasi.' : 'Tidak ada data ditemukan'}
                 </td>
               </tr>
             )}

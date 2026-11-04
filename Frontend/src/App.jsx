@@ -295,7 +295,7 @@ export default function App() {
           onNavigate={navigateTo}
           currentUser={currentUser}
           onLogout={handleLogout}
-          unreadCount={1}
+          unreadCount={0}
         >
           {currentView === "dashboard" && (
             <AnggotaDashboard
@@ -358,10 +358,10 @@ export default function App() {
           onNavigate={navigateTo}
           currentUser={{ ...currentUser, role: "Pengurus Divisi" }}
           onLogout={handleLogout}
-          unreadCount={2}
+          unreadCount={0}
         >
           {currentView === "pd-dashboard" && (
-            <PDDashboard
+            <PDDashboard showToast={showToast}
               currentUser={currentUser}
               onNavigate={navigateTo}
               onSelectAnnouncement={(item) => {
@@ -424,10 +424,10 @@ export default function App() {
           onNavigate={navigateTo}
           currentUser={currentUser}
           onLogout={handleLogout}
-          unreadCount={3}
+          unreadCount={0}
         >
           {currentView === "k-beranda" && (
-            <KetuaBeranda
+            <KetuaBeranda showToast={showToast}
               currentUser={currentUser}
               onNavigate={navigateTo}
               onSelectAnnouncement={(item) => {
@@ -441,7 +441,7 @@ export default function App() {
             <KetuaDashboardEksekutif onNavigate={navigateTo} />
           )}
 
-          {currentView === "k-kalender-agenda" && <KetuaKalenderAgenda />}
+          {currentView === "k-kalender-agenda" && <KetuaKalenderAgenda showToast={showToast} />}
 
           {currentView === "k-vault-lpj" && (
             <KetuaVaultLPJ onNavigate={navigateTo} showToast={showToast} />

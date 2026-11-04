@@ -127,8 +127,8 @@ with app.app_context():
     db.session.commit()
     print("Populated permissions & role_permissions.")
 
-    # 4. Seed users
-    ketua = User.query.filter(User.Email.in_(['ketua@siomas.com', 'admin@siomas.com'])).first()
+    # 5. Seed users
+    ketua = User.query.filter_by(Email='ketua@siomas.com').first()
     if not ketua:
         ketua = User(
             Nama='Ketua UKM SIOMAS',
@@ -141,10 +141,20 @@ with app.app_context():
         ketua.set_password('ketua123')
         db.session.add(ketua)
         print("Ketua user created (ketua@siomas.com / ketua123).")
-    else:
-        ketua.Role = 'Ketua'
-        ketua.Job_Desc = 'Ketua Umum'
-        print("Existing admin/ketua user updated to role Ketua.")
+
+    admin = User.query.filter_by(Email='admin@siomas.com').first()
+    if not admin:
+        admin = User(
+            Nama='Admin / Ketua SIOMAS',
+            NIM='H071231000',
+            Email='admin@siomas.com',
+            Role='Ketua',
+            Job_Desc='Ketua Umum',
+            Status_Keanggotaan='Aktif'
+        )
+        admin.set_password('admin123')
+        db.session.add(admin)
+        print("Admin user created (admin@siomas.com / admin123).")
 
     pengurus = User.query.filter_by(Email='pengurus@siomas.com').first()
     if not pengurus:

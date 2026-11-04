@@ -1,72 +1,27 @@
-import React, { useState } from 'react';
-import { Users, Calendar, Share2, X, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Users, Share2, X, ChevronRight, FileText } from 'lucide-react';
+import { interUkmApi, schedulesApi, parseInterUkmPost } from '../../services/api.js';
 
-const posts = [
-  {
-    id: 1,
-    org: 'BEM Universitas',
-    orgInitial: 'BU',
-    orgColor: '#3B82F6',
-    waktu: '1 jam lalu',
-    kategori: 'Kolaborasi',
-    kategoriColor: '#4F46E5',
-    judul: 'Open Collaboration: Campus Creative Week',
-    img: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=700&q=80',
-    desc: 'Kami mengundang seluruh UKM untuk berkolaborasi dalam rangkaian Campus Creative Week 2024.',
-    tertarik: 24,
-    status: 'pending',
-    contactName: 'Nadya Ayuningtyas',
-    contactRole: 'Koordinator Kolaborasi BEM Universitas',
-    tanggal: '24-26 November 2024',
-    tempat: 'Student Center'
-  },
-  {
-    id: 2,
-    org: 'UKM Fotografi',
-    orgInitial: 'UF',
-    orgColor: '#10B981',
-    waktu: '2 jam lalu',
-    kategori: 'Acara',
-    kategoriColor: '#059669',
-    judul: 'Pameran Foto: Ruang dan Cerita',
-    img: 'https://images.unsplash.com/photo-1605153864431-a2795a1b2f95?w=700&q=80',
-    desc: 'Pameran terbuka hasil karya mahasiswa akan hadir pekan depan di Galeri Kampus.',
-    tertarik: 36,
-    status: 'approved'
-  },
-  {
-    id: 3,
-    org: 'Himpunan Informatika',
-    orgInitial: 'HI',
-    orgColor: '#6366F1',
-    waktu: '3 jam lalu',
-    kategori: 'Media Partner',
-    kategoriColor: '#7C3AED',
-    judul: 'Mencari Media Partner untuk TechnoFest',
-    img: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=700&q=80',
-    desc: 'Mari jadi bagian dari festival teknologi terbesar di kampus tahun ini.',
-    tertarik: 48,
-    status: 'pending'
-  }
-];
-
-const agendaBersama = [
-  { day: 21, month: 'NOV', title: 'Forum Ketua UKM', place: 'Gedung Rektorat', org: '4 organisasi bergabung', color: '#4F46E5' },
-  { day: 24, month: 'NOV', title: 'Campus Creative Week', place: 'Student Center', org: '7 organisasi bergabung', color: '#10B981' },
-  { day: 30, month: 'NOV', title: 'TechnoFest 2024', place: 'Auditorium Utama', org: '13 organisasi bergabung', color: '#F59E0B' }
-];
+const MONTHS_SHORT = ['JAN', 'FEB', 'MAR', 'APR', 'MEI', 'JUN', 'JUL', 'AGU', 'SEP', 'OKT', 'NOV', 'DES'];
 
 // Modal: Buat Permintaan Kolaborasi
-function ModalBuatKolab({ onClose, onSubmit }) {
+function ModalBuatKolab({ onClose, onSubmit, submitting }) {
   const [form, setForm] = useState({
-    program: '', ukmTujuan: '', bentuk: 'Mitra Penyelenggara',
+    program: '', ukmTujuan: 'BEM Universitas', bentuk: 'Mitra Penyelenggara',
     kontribusiDibutuhkan: '', kontribusiDitawarkan: '',
     tanggal: '', batasRespons: '', narahubung: '', whatsapp: '',
+    fileName: '',
+    proposalFileObj: null,
     notif: true
   });
+  const fileInputRef = useRef(null);
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setForm(p => ({ ...p, [name]: type === 'checkbox' ? checked : value }));
+  };
+  const handleFileChange = (e) => {
+    const f = e.target.files?.[0];
+    if (f) setForm(p => ({ ...p, fileName: `${f.name} (${(f.size / 1024).toFixed(1)} KB)`, proposalFileObj: f }));
   };
 
   return (
@@ -85,17 +40,17 @@ function ModalBuatKolab({ onClose, onSubmit }) {
         <div style={{ padding: '0 28px 28px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div className="form-group">
             <label className="form-label">Nama Program atau Kegiatan</label>
-            <input className="form-input" name="program" value={form.program} onChange={handleChange} placeholder="Contoh: SIOMAS Leadership Camp 2024" />
+            <input className="form-input" name="program" value={form.program} onChange={handleChange} placeholder="Contoh: SIOMAS Leadership Camp" />
           </div>
 
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">UKM Tujuan</label>
               <select className="form-select" name="ukmTujuan" value={form.ukmTujuan} onChange={handleChange}>
-                <option value="">Pilih organisasi tujuan</option>
                 <option>BEM Universitas</option>
                 <option>UKM Fotografi</option>
                 <option>Himpunan Informatika</option>
+                <option>Seluruh UKM Kampus</option>
               </select>
             </div>
             <div className="form-group">
@@ -106,18 +61,6 @@ function ModalBuatKolab({ onClose, onSubmit }) {
                 <option>Sponsor</option>
                 <option>Co-host</option>
               </select>
-            </div>
-          </div>
-
-          {/* Cover image placeholder */}
-          <div style={{ border: '1px solid #E2E8F0', borderRadius: '10px', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=120&q=80" alt="" style={{ width: '80px', height: '60px', objectFit: 'cover', borderRadius: '8px' }} />
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>Gambar sampul kolaborasi</div>
-              <div style={{ fontSize: '12px', color: '#94A3B8' }}>JPG atau PNG • Rekomendasi 16:9</div>
-              <button style={{ background: '#EEF2FF', color: '#4F46E5', border: 'none', borderRadius: '8px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px', fontFamily: 'inherit', fontWeight: 600, marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                ↑ Ganti Gambar
-              </button>
             </div>
           </div>
 
@@ -153,32 +96,46 @@ function ModalBuatKolab({ onClose, onSubmit }) {
             </div>
           </div>
 
-          <div style={{ border: '1.5px dashed #E2E8F0', borderRadius: '10px', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.doc,.docx"
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
+          />
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            style={{ border: '1.5px dashed #E2E8F0', borderRadius: '10px', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+          >
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <div style={{ width: '32px', height: '32px', background: '#EEF2FF', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4F46E5' }}>↑</div>
+              <div style={{ width: '32px', height: '32px', background: '#EEF2FF', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4F46E5' }}>
+                <FileText size={16} />
+              </div>
               <div>
                 <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>Lampirkan proposal kerja sama</div>
-                <div style={{ fontSize: '12px', color: '#94A3B8' }}>PDF atau DOCX • Maksimal 10 MB</div>
+                <div style={{ fontSize: '12px', color: form.fileName ? '#4F46E5' : '#94A3B8', fontWeight: form.fileName ? 600 : 400 }}>
+                  {form.fileName || 'PDF atau DOCX • Maksimal 10 MB'}
+                </div>
               </div>
             </div>
-            <button style={{ background: 'none', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', color: '#4F46E5', fontFamily: 'inherit', fontWeight: 600 }}>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+              style={{ background: 'none', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', color: '#4F46E5', fontFamily: 'inherit', fontWeight: 600 }}
+            >
               Pilih Berkas
             </button>
           </div>
 
-          <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '10px', padding: '12px 14px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-            <input type="checkbox" id="notifKolab" name="notif" checked={form.notif} onChange={handleChange} style={{ marginTop: '2px', accentColor: '#4F46E5' }} />
-            <label htmlFor="notifKolab" style={{ cursor: 'pointer' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>Kirim notifikasi kepada UKM tujuan</div>
-              <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>Pengurus organisasi tujuan akan menerima pemberitahuan dan batas waktu respons.</div>
-            </label>
-          </div>
-
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '8px' }}>
             <button onClick={onClose} className="btn-secondary" style={{ width: 'auto', padding: '10px 20px' }}>Batal</button>
-            <button className="btn-primary" style={{ width: 'auto', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
-              onClick={() => { onSubmit(form); onClose(); }}>
-              <Users size={16} /> Kirim Permintaan
+            <button
+              className="btn-primary"
+              disabled={submitting}
+              style={{ width: 'auto', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
+              onClick={() => onSubmit(form)}
+            >
+              <Users size={16} /> {submitting ? 'Mengirim...' : 'Kirim Permintaan'}
             </button>
           </div>
         </div>
@@ -209,7 +166,7 @@ function ModalVerifikasiPublikasi({ post, onClose, onApprove, onReject }) {
             <span style={{ color: '#10B981', fontSize: '16px' }}>✓</span>
             <div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>Konten lolos pemeriksaan awal!</div>
-              <div style={{ fontSize: '12px', color: '#64748B' }}>Identitas organisasi, jadwal, dan narahubung telah lengkap.</div>
+              <div style={{ fontSize: '12px', color: '#64748B' }}>Pengirim: {post?.org}</div>
             </div>
           </div>
         </div>
@@ -231,28 +188,118 @@ function ModalVerifikasiPublikasi({ post, onClose, onApprove, onReject }) {
 
 export default function KetuaHubInterUKM({ onNavigate, onSelectPost, showToast }) {
   const [showKolab, setShowKolab] = useState(false);
+  const [submittingKolab, setSubmittingKolab] = useState(false);
   const [verifikasiPost, setVerifikasiPost] = useState(null);
-  const [publishedIds, setPublishedIds] = useState([]);
+  const [posts, setPosts] = useState([]);
+  const [agendaBersama, setAgendaBersama] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const pendingPosts = posts.filter(p => p.status === 'pending' && !publishedIds.includes(p.id));
+  const loadHubData = useCallback(async () => {
+    setLoading(true);
+    const [pendingRes, feedRes, schedRes] = await Promise.all([
+      interUkmApi.getPending(),
+      interUkmApi.getFeed(),
+      schedulesApi.getAll()
+    ]);
+
+    const pendingList = pendingRes.ok && pendingRes.data?.data ? pendingRes.data.data.map(parseInterUkmPost) : [];
+    const approvedList = feedRes.ok && feedRes.data?.data ? feedRes.data.data.map(parseInterUkmPost) : [];
+
+    // Combine pending first so Ketua can verify them right away, then approved
+    const combined = [...pendingList, ...approvedList];
+    setPosts(combined);
+
+    const schedList = schedRes.ok && schedRes.data?.data ? schedRes.data.data : [];
+    const colors = ['#4F46E5', '#10B981', '#F59E0B'];
+    setAgendaBersama(
+      schedList.slice(0, 3).map((s, idx) => {
+        const d = new Date(s.waktu);
+        const valid = !isNaN(d.getTime());
+        return {
+          id: s.id,
+          day: valid ? d.getDate() : '--',
+          month: valid ? MONTHS_SHORT[d.getMonth()] : '---',
+          title: s.judul_kegiatan,
+          place: s.lokasi || 'Kampus',
+          org: s.kategori || 'Kegiatan Terbuka',
+          color: colors[idx % colors.length]
+        };
+      })
+    );
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    loadHubData();
+  }, [loadHubData]);
+
+  const handleCreateKolab = async (form) => {
+    if (!form.program.trim()) {
+      showToast && showToast('Nama program wajib diisi!', 'error');
+      return;
+    }
+    setSubmittingKolab(true);
+    const isi = [
+      `Bentuk Kolaborasi: ${form.bentuk}`,
+      form.kontribusiDibutuhkan ? `Kontribusi Dibutuhkan: ${form.kontribusiDibutuhkan}` : '',
+      form.kontribusiDitawarkan ? `Kontribusi Ditawarkan: ${form.kontribusiDitawarkan}` : '',
+      form.tanggal ? `Pelaksanaan: ${form.tanggal}` : '',
+      form.narahubung ? `PIC: ${form.narahubung} (${form.whatsapp || '-'})` : '',
+      form.fileName ? `Lampiran: ${form.fileName}` : ''
+    ].filter(Boolean).join(' • ');
+
+    const res = await interUkmApi.createPost({
+      ukm_pengirim: form.ukmTujuan || 'SIOMAS',
+      judul: form.program.trim(),
+      isi_pengumuman: isi || `Undangan kolaborasi program ${form.program}`,
+      proposal: form.proposalFileObj || undefined
+    });
+    setSubmittingKolab(false);
+
+    if (res.ok) {
+      setShowKolab(false);
+      showToast && showToast('Permintaan kolaborasi berhasil dibuat!', 'success');
+      loadHubData();
+    } else {
+      showToast && showToast(res.data?.message || 'Gagal mengirim permintaan kolaborasi.', 'error');
+    }
+  };
+
+  const handleApprovePost = async (post) => {
+    const res = await interUkmApi.approve(post.id);
+    if (res.ok) {
+      showToast && showToast(`Publikasi "${post.judul}" telah disetujui dan tayang di Hub!`, 'success');
+      loadHubData();
+    } else {
+      showToast && showToast(res.data?.message || 'Gagal menyetujui publikasi.', 'error');
+    }
+  };
+
+  const handleRejectPost = async (post) => {
+    const res = await interUkmApi.reject(post.id, 'Ditolak oleh Ketua UKM');
+    if (res.ok) {
+      showToast && showToast(`Publikasi "${post.judul}" telah ditolak.`, 'info');
+      loadHubData();
+    } else {
+      showToast && showToast(res.data?.message || 'Gagal menolak publikasi.', 'error');
+    }
+  };
 
   return (
     <div>
       {showKolab && (
         <ModalBuatKolab
           onClose={() => setShowKolab(false)}
-          onSubmit={() => showToast && showToast('Permintaan kolaborasi telah dikirim!', 'success')}
+          onSubmit={handleCreateKolab}
+          submitting={submittingKolab}
         />
       )}
       {verifikasiPost && (
         <ModalVerifikasiPublikasi
           post={verifikasiPost}
           onClose={() => setVerifikasiPost(null)}
-          onApprove={() => {
-            setPublishedIds(prev => [...prev, verifikasiPost.id]);
-            showToast && showToast(`Publikasi "${verifikasiPost.judul}" telah disetujui!`, 'success');
-          }}
-          onReject={() => showToast && showToast('Publikasi ditolak', 'error')}
+          onApprove={() => handleApprovePost(verifikasiPost)}
+          onReject={() => handleRejectPost(verifikasiPost)}
         />
       )}
 
@@ -287,71 +334,90 @@ export default function KetuaHubInterUKM({ onNavigate, onSelectPost, showToast }
               <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#0F172A' }}>Aktivitas Terbaru</h2>
               <p style={{ fontSize: '13px', color: '#94A3B8' }}>Kabar dari organisasi di seluruh kampus</p>
             </div>
-            <button className="portal-link-btn">Lihat semua <ChevronRight size={14} /></button>
+            {posts.length > 0 && (
+              <button className="portal-link-btn" onClick={loadHubData}>Segarkan <ChevronRight size={14} /></button>
+            )}
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {posts.map(post => (
-              <div key={post.id} className="portal-card" style={{ padding: 0, overflow: 'hidden' }}>
-                {/* Header */}
-                <div style={{ padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ width: '36px', height: '36px', background: post.orgColor, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '13px', fontWeight: 700, flexShrink: 0 }}>
-                      {post.orgInitial}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A' }}>{post.org}</div>
-                      <div style={{ fontSize: '12px', color: '#94A3B8' }}>{post.waktu}</div>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    {post.status === 'pending' && !publishedIds.includes(post.id) && (
-                      <button
-                        onClick={() => setVerifikasiPost(post)}
-                        style={{ background: '#FEF3C7', color: '#D97706', border: 'none', borderRadius: '8px', padding: '4px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 700, fontFamily: 'inherit' }}
-                      >
-                        Verifikasi
-                      </button>
-                    )}
-                    {(post.status === 'approved' || publishedIds.includes(post.id)) && (
-                      <span style={{ background: '#ECFDF5', color: '#059669', fontSize: '11px', fontWeight: 700, padding: '4px 12px', borderRadius: '8px' }}>Published</span>
-                    )}
-                    <span style={{ background: post.status === 'pending' ? '#EEF2FF' : '#ECFDF5', color: post.status === 'pending' ? '#4F46E5' : '#059669', fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '6px' }}>
-                      {post.kategori}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Title */}
-                <div style={{ padding: '0 16px 10px' }}>
-                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0F172A' }}>{post.judul}</h3>
-                </div>
-
-                {/* Image */}
-                <img src={post.img} alt={post.judul} style={{ width: '100%', height: '200px', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; }} />
-
-                {/* Desc + actions */}
-                <div style={{ padding: '12px 16px' }}>
-                  <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '12px' }}>{post.desc}</p>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', gap: '14px' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', color: '#64748B' }}>
-                        <Users size={14} /> {post.tertarik} tertarik
-                      </span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', color: '#64748B' }}>
-                        <Share2 size={14} /> Bagikan
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => onSelectPost && onSelectPost(post)}
-                      style={{ background: 'none', border: '1.5px solid #E2E8F0', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: 'inherit' }}
-                    >
-                      Lihat Detail
-                    </button>
-                  </div>
-                </div>
+            {loading ? (
+              <div className="portal-card" style={{ textAlign: 'center', padding: '40px 20px', color: '#94A3B8' }}>
+                Memuat publikasi Hub Inter-UKM...
               </div>
-            ))}
+            ) : posts.length === 0 ? (
+              <div className="portal-card" style={{ textAlign: 'center', padding: '48px 24px', color: '#64748B' }}>
+                <div style={{ fontSize: '15px', fontWeight: 600, color: '#0F172A', marginBottom: '6px' }}>Belum ada publikasi kolaborasi Inter-UKM</div>
+                <p style={{ fontSize: '13px', color: '#94A3B8', marginBottom: '16px' }}>
+                  Klik tombol <strong>+ Publikasikan ke Hub</strong> atau <strong>Buat Permintaan Kolaborasi</strong> untuk menambahkan publikasi pertama.
+                </p>
+              </div>
+            ) : (
+              posts.map(post => (
+                <div key={post.id} className="portal-card" style={{ padding: 0, overflow: 'hidden' }}>
+                  {/* Header */}
+                  <div style={{ padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '36px', height: '36px', background: post.orgColor, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '13px', fontWeight: 700, flexShrink: 0 }}>
+                        {post.orgInitial}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A' }}>{post.org}</div>
+                        <div style={{ fontSize: '12px', color: '#94A3B8' }}>{post.waktu}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      {post.status === 'pending' && (
+                        <button
+                          onClick={() => setVerifikasiPost(post)}
+                          style={{ background: '#FEF3C7', color: '#D97706', border: 'none', borderRadius: '8px', padding: '4px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 700, fontFamily: 'inherit' }}
+                        >
+                          Verifikasi
+                        </button>
+                      )}
+                      {post.status === 'approved' && (
+                        <span style={{ background: '#ECFDF5', color: '#059669', fontSize: '11px', fontWeight: 700, padding: '4px 12px', borderRadius: '8px' }}>Published</span>
+                      )}
+                      <span style={{ background: post.status === 'pending' ? '#EEF2FF' : '#ECFDF5', color: post.status === 'pending' ? '#4F46E5' : '#059669', fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '6px' }}>
+                        {post.kategori}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Title */}
+                  <div style={{ padding: '0 16px 10px' }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0F172A' }}>{post.judul}</h3>
+                  </div>
+
+                  {/* Cover Image if uploaded */}
+                  {post.img && (
+                    <div style={{ padding: '0 16px 12px' }}>
+                      <img src={post.img} alt={post.judul} style={{ width: '100%', maxHeight: '220px', objectFit: 'cover', borderRadius: '10px' }} />
+                    </div>
+                  )}
+
+                  {/* Desc + actions */}
+                  <div style={{ padding: '12px 16px', borderTop: '1px solid #F1F5F9' }}>
+                    <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '12px' }}>{post.desc}</p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '14px' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', color: '#64748B' }}>
+                          <Users size={14} /> {post.tertarik} tertarik
+                        </span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', color: '#64748B' }}>
+                          <Share2 size={14} /> Bagikan
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => onSelectPost && onSelectPost(post)}
+                        style={{ background: 'none', border: '1.5px solid #E2E8F0', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: 'inherit' }}
+                      >
+                        Lihat Detail
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -362,19 +428,25 @@ export default function KetuaHubInterUKM({ onNavigate, onSelectPost, showToast }
             <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>Agenda Bersama</h3>
             <p style={{ fontSize: '12px', color: '#94A3B8', marginBottom: '14px' }}>Terbuka untuk semua UKM</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {agendaBersama.map((a, i) => (
-                <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                  <div style={{ background: a.color, color: '#fff', borderRadius: '8px', padding: '4px 8px', textAlign: 'center', minWidth: '44px', flexShrink: 0 }}>
-                    <div style={{ fontSize: '16px', fontWeight: 700 }}>{a.day}</div>
-                    <div style={{ fontSize: '10px', fontWeight: 600 }}>{a.month}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>{a.title}</div>
-                    <div style={{ fontSize: '12px', color: '#94A3B8' }}>{a.place}</div>
-                    <div style={{ fontSize: '11px', color: '#94A3B8' }}>{a.org}</div>
-                  </div>
+              {agendaBersama.length === 0 ? (
+                <div style={{ fontSize: '12.5px', color: '#94A3B8', textAlign: 'center', padding: '12px 0' }}>
+                  Belum ada agenda bersama.
                 </div>
-              ))}
+              ) : (
+                agendaBersama.map((a) => (
+                  <div key={a.id} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                    <div style={{ background: a.color, color: '#fff', borderRadius: '8px', padding: '4px 8px', textAlign: 'center', minWidth: '44px', flexShrink: 0 }}>
+                      <div style={{ fontSize: '16px', fontWeight: 700 }}>{a.day}</div>
+                      <div style={{ fontSize: '10px', fontWeight: 600 }}>{a.month}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>{a.title}</div>
+                      <div style={{ fontSize: '12px', color: '#94A3B8' }}>{a.place}</div>
+                      <div style={{ fontSize: '11px', color: '#94A3B8' }}>{a.org}</div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 

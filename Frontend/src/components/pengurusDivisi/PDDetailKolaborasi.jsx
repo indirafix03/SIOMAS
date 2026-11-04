@@ -1,35 +1,59 @@
 import React, { useState } from 'react';
-import { ChevronLeft, FileText, Eye } from 'lucide-react';
+import { ChevronLeft, FileText, Eye, Sparkles } from 'lucide-react';
 
 export default function PDDetailKolaborasi({ post, onBack, showToast }) {
+  const [expressed, setExpressed] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
   const data = post || {
-    judul: 'Campus Creative Week 2024',
-    publishedBy: 'BEM Universitas',
+    judul: 'Publikasi Kolaborasi UKM',
+    publishedBy: 'SIOMAS',
     isPublished: true,
-    deskripsi: 'Campus Creative Week menghadirkan pameran, workshop, pertunjukan, dan forum kolaborasi selama tiga hari. Kami mengundang SIOMAS sebagai mitra program dan media partner.',
-    headline: 'Ruang kreatif untuk karya dan kolaborasi mahasiswa',
-    image: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=1000&auto=format&fit=crop&q=80',
-    pelaksanaan: '24–26 November 2024',
-    tempat: 'Student Center',
-    fileName: 'Proposal_Campus_Creative_Week.pdf',
-    fileSize: '3.2 MB',
-    contactPerson: 'Nadya Ayuningtyas',
-    contactRole: 'Koordinator Kolaborasi BEM Universitas',
-    contactWa: '+62 812 9988 7766',
-    orgCode: 'BU',
+    deskripsi: '-',
+    headline: 'Publikasi Kolaborasi UKM',
+    image: '',
+    pelaksanaan: '-',
+    tempat: 'Kampus',
+    fileName: '',
+    fileSize: '',
+    fileUrl: '',
+    contactPerson: 'Pengurus UKM',
+    contactRole: 'SIOMAS',
+    contactWa: '-',
+    orgCode: 'SI',
     orgBadgeClass: 'org-blue'
   };
 
-  const [expressed, setExpressed] = useState(false);
+  const bannerSrc = data.bannerImage || data.image || data.img || '';
+  const contactInitials = (data.contactPerson || 'UK')
+    .replace(/[^a-zA-Z0-9\s]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(w => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'UK';
 
   const handleHubungi = () => {
+    const cleanPhone = (data.contactWa || '').replace(/[^0-9]/g, '');
+    if (cleanPhone) {
+      window.open(`https://wa.me/${cleanPhone}`, '_blank');
+    }
     showToast(`Membuka WhatsApp ke ${data.contactPerson}: ${data.contactWa}`, 'success');
-    window.open(`https://wa.me/${(data.contactWa || '').replace(/[^0-9]/g, '')}`, '_blank');
   };
 
   const handleNyatakan = () => {
     setExpressed(true);
     showToast(`Ketertarikan berhasil dinyatakan. ${data.contactPerson} akan segera menghubungi Anda.`, 'success');
+  };
+
+  const handlePreview = () => {
+    if (data.fileUrl) {
+      window.open(data.fileUrl, '_blank');
+    } else if (data.fileName) {
+      showToast(`Lampiran tercatat: ${data.fileName}`, 'info');
+    }
   };
 
   return (
@@ -62,30 +86,50 @@ export default function PDDetailKolaborasi({ post, onBack, showToast }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
               <div className={`org-avatar-badge ${data.orgBadgeClass || 'org-blue'}`} style={{ width: '44px', height: '44px', fontSize: '14px' }}>
-                {data.orgCode}
+                {data.orgCode || 'SI'}
               </div>
               <div>
                 <h4 style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', margin: '0 0 2px' }}>{data.publishedBy}</h4>
-                <p style={{ fontSize: '12px', color: '#64748B', margin: 0 }}>Organisasi terverifikasi • 12.4K pengikut</p>
+                <p style={{ fontSize: '12px', color: '#64748B', margin: 0 }}>Organisasi mahasiswa kampus</p>
               </div>
             </div>
-            {data.isPublished && (
-              <span style={{ fontSize: '12px', fontWeight: 700, padding: '5px 14px', borderRadius: '20px', background: '#DCFCE7', color: '#16A34A' }}>
-                Published
-              </span>
-            )}
+            <span style={{ fontSize: '12px', fontWeight: 700, padding: '5px 14px', borderRadius: '20px', background: data.isPublished ? '#DCFCE7' : '#FEF3C7', color: data.isPublished ? '#16A34A' : '#D97706' }}>
+              {data.isPublished ? 'Published' : 'Menunggu Verifikasi'}
+            </span>
           </div>
 
-          {/* Cover Image */}
-          <div style={{ borderRadius: '12px', overflow: 'hidden', marginBottom: '20px' }}>
-            <img src={data.image} alt={data.judul} style={{ width: '100%', height: '340px', objectFit: 'cover' }} />
-          </div>
-          <p style={{ fontSize: '11px', color: '#94A3B8', textAlign: 'right', marginTop: '-16px', marginBottom: '20px' }}>
-            Foto oleh Vitaly Gariev melalui Unsplash
-          </p>
+          {/* Cover Image or Visual Banner */}
+          {bannerSrc && !imgError ? (
+            <div style={{ borderRadius: '12px', overflow: 'hidden', marginBottom: '20px' }}>
+              <img
+                src={bannerSrc}
+                alt={data.judul}
+                style={{ width: '100%', height: '320px', objectFit: 'cover' }}
+                onError={() => setImgError(true)}
+              />
+            </div>
+          ) : (
+            <div style={{
+              borderRadius: '12px',
+              height: '180px',
+              background: 'linear-gradient(135deg, #1E1B4B 0%, #4F46E5 100%)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '24px',
+              color: '#FFFFFF',
+              textAlign: 'center',
+              marginBottom: '20px'
+            }}>
+              <Sparkles size={24} style={{ marginBottom: '8px' }} />
+              <div style={{ fontSize: '18px', fontWeight: 800 }}>{data.judul}</div>
+              <div style={{ fontSize: '12.5px', color: '#C7D2FE', marginTop: '4px' }}>{data.publishedBy}</div>
+            </div>
+          )}
 
           {/* Headline & Desc */}
-          <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#0F172A', marginBottom: '10px' }}>{data.headline}</h3>
+          <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#0F172A', marginBottom: '10px' }}>{data.headline || data.judul}</h3>
           <p style={{ fontSize: '14px', color: '#475569', lineHeight: '1.7', marginBottom: '24px' }}>{data.deskripsi}</p>
 
           {/* Info Grid */}
@@ -111,20 +155,22 @@ export default function PDDetailKolaborasi({ post, onBack, showToast }) {
           </div>
 
           {/* Proposal File */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px 18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <div style={{ background: '#FEE2E2', borderRadius: '8px', padding: '8px', color: '#DC2626' }}>
-                <FileText size={18} />
+          {data.fileName && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px 18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{ background: '#FEE2E2', borderRadius: '8px', padding: '8px', color: '#DC2626' }}>
+                  <FileText size={18} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>{data.fileName}</div>
+                  <div style={{ fontSize: '12px', color: '#94A3B8' }}>{data.fileSize} • Proposal kerja sama</div>
+                </div>
               </div>
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>{data.fileName}</div>
-                <div style={{ fontSize: '12px', color: '#94A3B8' }}>PDF • {data.fileSize} • Proposal kerja sama</div>
-              </div>
+              <button type="button" className="portal-outline-btn" style={{ width: 'auto', padding: '8px 16px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px' }} onClick={handlePreview}>
+                <Eye size={14} /> {data.fileUrl ? 'Buka Berkas' : 'Pratinjau'}
+              </button>
             </div>
-            <button type="button" className="portal-outline-btn" style={{ width: 'auto', padding: '8px 16px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => showToast(`Membuka pratinjau ${data.fileName}`, 'info')}>
-              <Eye size={14} /> Pratinjau
-            </button>
-          </div>
+          )}
         </div>
 
         {/* Right: Contact Person */}
@@ -132,7 +178,7 @@ export default function PDDetailKolaborasi({ post, onBack, showToast }) {
           <p style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', color: '#94A3B8', textTransform: 'uppercase', marginBottom: '16px' }}>CONTACT PERSON</p>
 
           <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', fontSize: '20px', fontWeight: 800, color: '#6366F1' }}>
-            {data.contactPerson ? data.contactPerson.split(' ').map((n) => n[0]).join('').slice(0, 2) : 'NA'}
+            {contactInitials}
           </div>
 
           <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: '0 0 4px' }}>{data.contactPerson}</h4>

@@ -6,32 +6,44 @@ import {
   FileText, 
   Eye, 
   Heart, 
-  MessageSquare, 
-  CheckCircle2, 
-  ExternalLink 
+  MessageSquare,
+  Sparkles
 } from 'lucide-react';
 
 export default function AnggotaHubDetail({ post, onBack, showToast }) {
   const [interested, setInterested] = useState(false);
+  const [imgError, setImgError] = useState(false);
 
   const detail = post || {
     id: 1,
-    judul: 'Campus Creative Week 2024',
-    orgName: 'BEM Universitas',
-    orgCode: 'BU',
-    orgType: 'Organisasi terverifikasi • 12.4K pengikut',
+    judul: 'Publikasi Kolaborasi UKM',
+    orgName: 'SIOMAS',
+    orgCode: 'SI',
+    orgType: 'Organisasi mahasiswa kampus',
     status: 'Published',
-    bannerImage: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=1200&auto=format&fit=crop&q=80',
-    headline: 'Ruang kreatif untuk karya dan kolaborasi mahasiswa',
-    deskripsi: 'Campus Creative Week menghadirkan pameran, workshop, pertunjukan, dan forum kolaborasi selama tiga hari. Kami mengundang SIOMAS sebagai mitra program dan media partner.',
-    pelaksanaan: '24–26 November 2024',
-    tempat: 'Student Center',
-    fileName: 'Proposal_Campus_Creative_Week.pdf',
-    fileSize: '3.2 MB',
-    contactPerson: 'Nadya Ayuningtyas',
-    contactRole: 'Koordinator Kolaborasi BEM Universitas',
-    contactWa: '+62 812 9988 7766'
+    bannerImage: '',
+    headline: 'Publikasi Kolaborasi UKM',
+    deskripsi: '-',
+    pelaksanaan: '-',
+    tempat: 'Kampus',
+    fileName: '',
+    fileSize: '',
+    fileUrl: '',
+    contactPerson: 'Pengurus UKM',
+    contactRole: 'SIOMAS',
+    contactWa: '-'
   };
+
+  const bannerSrc = detail.bannerImage || detail.image || detail.img || '';
+  const contactInitials = (detail.contactPerson || 'UK')
+    .replace(/[^a-zA-Z0-9\s]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(w => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'UK';
 
   const handleInterest = () => {
     setInterested(!interested);
@@ -44,11 +56,21 @@ export default function AnggotaHubDetail({ post, onBack, showToast }) {
   };
 
   const handleContact = () => {
+    const cleanPhone = (detail.contactWa || '').replace(/[^0-9]/g, '');
+    if (cleanPhone) {
+      window.open(`https://wa.me/${cleanPhone}`, '_blank');
+    }
     showToast(`Membuka kontak WhatsApp ${detail.contactPerson} (${detail.contactWa})...`, 'info');
   };
 
   const handlePreviewPdf = () => {
-    showToast(`Membuka pratinjau berkas ${detail.fileName}...`, 'info');
+    if (detail.fileUrl) {
+      window.open(detail.fileUrl, '_blank');
+    } else if (detail.fileName) {
+      showToast(`Lampiran tercatat: ${detail.fileName}`, 'info');
+    } else {
+      showToast('Tidak ada berkas lampiran pada publikasi ini.', 'info');
+    }
   };
 
   return (
@@ -72,32 +94,54 @@ export default function AnggotaHubDetail({ post, onBack, showToast }) {
           <div style={{ padding: '24px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
               <div className="org-avatar-badge org-blue" style={{ width: '44px', height: '44px', borderRadius: '12px', fontSize: '16px' }}>
-                {detail.orgCode || 'BU'}
+                {detail.orgCode || 'SI'}
               </div>
               <div>
                 <h4 style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', margin: 0 }}>{detail.orgName}</h4>
-                <p style={{ fontSize: '12px', color: '#94A3B8', margin: '2px 0 0' }}>{detail.orgType}</p>
+                <p style={{ fontSize: '12px', color: '#94A3B8', margin: '2px 0 0' }}>{detail.orgType || 'Organisasi mahasiswa kampus'}</p>
               </div>
             </div>
 
             <span className="tag-badge tag-green" style={{ fontSize: '12px', padding: '4px 10px' }}>
-              {detail.status || 'Published'}
+              {detail.status === 'pending' ? 'Menunggu Verifikasi' : 'Published'}
             </span>
           </div>
 
-          {/* Big Photo Banner */}
-          <div style={{ width: '100%', height: '360px', overflow: 'hidden', background: '#F1F5F9' }}>
-            <img 
-              src={detail.bannerImage} 
-              alt={detail.judul} 
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-          </div>
+          {/* Photo Banner or Clean Visual Banner */}
+          {bannerSrc && !imgError ? (
+            <div style={{ width: '100%', height: '320px', overflow: 'hidden', background: '#F1F5F9' }}>
+              <img 
+                src={bannerSrc} 
+                alt={detail.judul} 
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                onError={() => setImgError(true)}
+              />
+            </div>
+          ) : (
+            <div style={{
+              width: '100%',
+              height: '200px',
+              background: 'linear-gradient(135deg, #1E1B4B 0%, #4F46E5 100%)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '24px',
+              color: '#FFFFFF',
+              textAlign: 'center'
+            }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+                <Sparkles size={24} />
+              </div>
+              <div style={{ fontSize: '18px', fontWeight: 800 }}>{detail.judul}</div>
+              <div style={{ fontSize: '13px', color: '#C7D2FE', marginTop: '4px' }}>{detail.orgName}</div>
+            </div>
+          )}
 
           {/* Text Description */}
           <div style={{ padding: '28px' }}>
             <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#0F172A', marginBottom: '10px' }}>
-              {detail.headline}
+              {detail.headline || detail.judul}
             </h3>
             <p style={{ fontSize: '14.5px', color: '#475569', lineHeight: '1.7', margin: 0 }}>
               {detail.deskripsi}
@@ -123,26 +167,28 @@ export default function AnggotaHubDetail({ post, onBack, showToast }) {
             </div>
 
             {/* Attachment preview box */}
-            <div style={{ background: '#FAFAFA', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <div className="doc-icon-wrap" style={{ width: '42px', height: '42px' }}>
-                  <FileText size={20} />
+            {detail.fileName && (
+              <div style={{ background: '#FAFAFA', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div className="doc-icon-wrap" style={{ width: '42px', height: '42px' }}>
+                    <FileText size={20} />
+                  </div>
+                  <div>
+                    <h5 style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A', margin: 0 }}>{detail.fileName}</h5>
+                    <p style={{ fontSize: '12px', color: '#94A3B8', margin: '2px 0 0' }}>{detail.fileSize} • Dokumen lampiran kolaborasi</p>
+                  </div>
                 </div>
-                <div>
-                  <h5 style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A', margin: 0 }}>{detail.fileName}</h5>
-                  <p style={{ fontSize: '12px', color: '#94A3B8', margin: '2px 0 0' }}>PDF • {detail.fileSize} • Proposal kerja sama</p>
-                </div>
-              </div>
 
-              <button 
-                type="button" 
-                className="portal-outline-btn"
-                style={{ width: 'auto', display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '13px' }}
-                onClick={handlePreviewPdf}
-              >
-                <Eye size={15} /> Pratinjau
-              </button>
-            </div>
+                <button 
+                  type="button" 
+                  className="portal-outline-btn"
+                  style={{ width: 'auto', display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '13px' }}
+                  onClick={handlePreviewPdf}
+                >
+                  <Eye size={15} /> {detail.fileUrl ? 'Buka Berkas' : 'Pratinjau'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -154,7 +200,7 @@ export default function AnggotaHubDetail({ post, onBack, showToast }) {
             </span>
 
             <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#EEF2FF', color: '#4F46E5', fontSize: '20px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-              NA
+              {contactInitials}
             </div>
 
             <h4 style={{ fontSize: '17px', fontWeight: 800, color: '#0F172A', marginBottom: '4px' }}>

@@ -1,80 +1,42 @@
-import React, { useState } from 'react';
-import { 
-  Download, 
-  Search, 
-  FileText, 
-  Edit3, 
-  ChevronLeft, 
-  ChevronRight,
-  FolderArchive 
+import React, { useState, useEffect } from 'react';
+import {
+  Download,
+  Search,
+  FileText,
+  Edit3,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import ModalEditDokumen from './ModalEditDokumen.jsx';
+import { documentsApi } from '../../services/api.js';
 
 export default function AnggotaVault({ showToast }) {
   const [activeFilter, setActiveFilter] = useState('Semua');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingDoc, setEditingDoc] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [documents, setDocuments] = useState([]);
 
-  const initialDocs = [
-    {
-      id: 1,
-      nama: 'LPJ SIOMAS Fest 2024',
-      label: 'LPJ',
-      divisi: 'Acara',
-      diperbarui: '18 Nov 2024',
-      ukuran: '2.4 MB',
-      status: 'Approved',
-      statusType: 'green',
-      tags: ['2024', 'Divisi Acara']
-    },
-    {
-      id: 2,
-      nama: 'Proposal Workshop Leadership',
-      label: 'Proposal',
-      divisi: 'PSDM',
-      diperbarui: '15 Nov 2024',
-      ukuran: '1.8 MB',
-      status: 'Approved',
-      statusType: 'green',
-      tags: ['PSDM', 'Pelatihan']
-    },
-    {
-      id: 3,
-      nama: 'Surat Peminjaman Aula',
-      label: 'Surat',
-      divisi: 'Sekretariat',
-      diperbarui: '12 Nov 2024',
-      ukuran: '540 KB',
-      status: 'Active',
-      statusType: 'green',
-      tags: ['Sarpras', 'Aula']
-    },
-    {
-      id: 4,
-      nama: 'Sipakamase Periode Oktober',
-      label: 'Sipakamase',
-      divisi: 'Bendahara',
-      diperbarui: '02 Nov 2024',
-      ukuran: '3.1 MB',
-      status: 'Approved',
-      statusType: 'green',
-      tags: ['Keuangan', 'Audit']
-    },
-    {
-      id: 5,
-      nama: 'LPJ Bakti Sosial',
-      label: 'LPJ',
-      divisi: 'Humas',
-      diperbarui: '28 Okt 2024',
-      ukuran: '4.5 MB',
-      status: 'Revision',
-      statusType: 'orange',
-      tags: ['Baksos', 'Revisi']
-    }
-  ];
-
-  const [documents, setDocuments] = useState(initialDocs);
+  useEffect(() => {
+    const loadDocs = async () => {
+      const res = await documentsApi.getAll();
+      if (res.ok && res.data?.data) {
+        const mapped = res.data.data.map((d) => ({
+          id: d.id,
+          nama: d.nama_berkas,
+          label: d.kategori,
+          divisi: d.uploader_name || 'Organisasi',
+          diperbarui: 'Terbaru',
+          ukuran: 'PDF',
+          status: d.status,
+          statusType: d.status === 'Approved' ? 'green' : 'orange',
+          tags: [d.kategori]
+        }));
+        setDocuments(mapped);
+      }
+    };
+    loadDocs();
+  }, []);
 
   const filterOptions = ['Semua', 'LPJ', 'Proposal', 'Surat', 'Sipakamase'];
 
@@ -92,20 +54,13 @@ export default function AnggotaVault({ showToast }) {
     showToast(`Kategorisasi dokumen "${updatedDoc.nama}" berhasil diperbarui.`, 'success');
   };
 
-  const handleDownload = (doc) => {
-    showToast(`Mengunduh berkas ${doc.nama} (${doc.ukuran})...`, 'success');
-    // Simulate blob download
-    const element = document.createElement('a');
-    const file = new Blob([`SIOMAS Repository Vault - ${doc.nama}\nDivisi: ${doc.divisi}\nLabel: ${doc.label}\nStatus: ${doc.status}`], { type: 'text/plain' });
-    element.href = URL.createObjectURL(file);
-    element.download = `${doc.nama}.txt`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-  };
-
-  const handleDownloadBundle = () => {
-    showToast('Mengunduh seluruh arsip dokumen aktif (.ZIP)...', 'success');
+  const handleDownload = async (doc) => {
+    const ok = await documentsApi.download(doc.id, doc.nama);
+    if (ok) {
+      showToast(`Mengunduh berkas ${doc.nama}...`, 'success');
+    } else {
+      showToast('Gagal mengunduh berkas.', 'error');
+    }
   };
 
   return (
@@ -118,15 +73,6 @@ export default function AnggotaVault({ showToast }) {
             <h1 className="page-title">Repository Vault</h1>
             <p className="page-subtitle">Kelola dan temukan dokumen organisasi dalam satu tempat.</p>
           </div>
-
-          <button 
-            type="button" 
-            className="portal-outline-btn"
-            style={{ width: 'auto', display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px' }}
-            onClick={handleDownloadBundle}
-          >
-            <Download size={16} /> Unduh Bundel
-          </button>
         </div>
       </div>
 
@@ -136,8 +82,8 @@ export default function AnggotaVault({ showToast }) {
         <div className="vault-search-filter-row">
           <div className="search-box-wrap">
             <Search size={16} />
-            <input 
-              type="text" 
+            <input
+              type="text"
               className="search-box-input"
               placeholder="Cari nama dokumen, divisi, atau label..."
               value={searchQuery}
@@ -153,7 +99,7 @@ export default function AnggotaVault({ showToast }) {
                 className={`filter-pill ${activeFilter === filter ? 'active' : ''}`}
                 onClick={() => setActiveFilter(filter)}
               >
-                {filter === 'Semua' ? 'Semua 24' : filter}
+                {filter === 'Semua' ? `Semua ${documents.length}` : filter}
               </button>
             ))}
           </div>
@@ -166,9 +112,9 @@ export default function AnggotaVault({ showToast }) {
               <tr>
                 <th>Nama Dokumen</th>
                 <th>Label</th>
-                <th>Divisi</th>
+                <th>Pengunggah</th>
                 <th>Diperbarui</th>
-                <th>Ukuran</th>
+                <th>Format</th>
                 <th>Status</th>
                 <th style={{ textAlign: 'right' }}>Aksi</th>
               </tr>
@@ -184,15 +130,15 @@ export default function AnggotaVault({ showToast }) {
                         </div>
                         <div>
                           <div className="doc-title-text">{doc.nama}</div>
-                          <div className="doc-sub-text">PDF Document</div>
+                          <div className="doc-sub-text">Dokumen Organisasi</div>
                         </div>
                       </div>
                     </td>
 
                     <td>
                       <span className={`tag-badge ${
-                        doc.label === 'LPJ' ? 'tag-purple' : 
-                        doc.label === 'Proposal' ? 'tag-gray' : 
+                        doc.label === 'LPJ' ? 'tag-purple' :
+                        doc.label === 'Proposal' ? 'tag-gray' :
                         doc.label === 'Sipakamase' ? 'tag-orange' : 'tag-gray'
                       }`}>
                         {doc.label}
@@ -214,16 +160,16 @@ export default function AnggotaVault({ showToast }) {
 
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', gap: '6px' }}>
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           className="table-action-btn"
                           title="Ubah Label & Tag"
                           onClick={() => setEditingDoc(doc)}
                         >
                           <Edit3 size={16} />
                         </button>
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           className="table-action-btn"
                           title="Unduh Berkas"
                           onClick={() => handleDownload(doc)}
@@ -237,7 +183,7 @@ export default function AnggotaVault({ showToast }) {
               ) : (
                 <tr>
                   <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: '#94A3B8' }}>
-                    Tidak ada dokumen yang sesuai dengan pencarian atau filter "{activeFilter}".
+                    Belum ada dokumen di Repository Vault.
                   </td>
                 </tr>
               )}
@@ -247,33 +193,19 @@ export default function AnggotaVault({ showToast }) {
 
         {/* Table Footer Pagination */}
         <div className="table-footer-pagination">
-          <span>Menampilkan 1-{filteredDocs.length} dari 24 dokumen</span>
+          <span>Menampilkan {filteredDocs.length} dari {documents.length} dokumen</span>
           <div className="pagination-btn-group">
             <button type="button" className="page-num-btn" disabled>
               <ChevronLeft size={14} />
             </button>
-            <button 
-              type="button" 
+            <button
+              type="button"
               className={`page-num-btn ${currentPage === 1 ? 'active' : ''}`}
               onClick={() => setCurrentPage(1)}
             >
               1
             </button>
-            <button 
-              type="button" 
-              className={`page-num-btn ${currentPage === 2 ? 'active' : ''}`}
-              onClick={() => setCurrentPage(2)}
-            >
-              2
-            </button>
-            <button 
-              type="button" 
-              className={`page-num-btn ${currentPage === 3 ? 'active' : ''}`}
-              onClick={() => setCurrentPage(3)}
-            >
-              3
-            </button>
-            <button type="button" className="page-num-btn">
+            <button type="button" className="page-num-btn" disabled>
               <ChevronRight size={14} />
             </button>
           </div>
@@ -282,7 +214,7 @@ export default function AnggotaVault({ showToast }) {
 
       {/* Edit Kategorisasi Modal */}
       {editingDoc && (
-        <ModalEditDokumen 
+        <ModalEditDokumen
           document={editingDoc}
           onClose={() => setEditingDoc(null)}
           onSave={handleSaveCategory}

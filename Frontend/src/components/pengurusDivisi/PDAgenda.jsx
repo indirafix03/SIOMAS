@@ -1,119 +1,49 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Clock, MapPin, Plus, Users, X } from 'lucide-react';
+import { schedulesApi } from '../../services/api.js';
 
 const MONTHS = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
 ];
 
-const INITIAL_EVENTS = [
-  {
-    id: 1,
-    day: 7,
-    month: 10, // November (0-indexed)
-    year: 2024,
-    title: 'Rapat Divisi',
-    category: 'Internal Divisi',
-    chipClass: 'event-chip-blue',
-    time: '14:00 - 16:00 WITA',
-    location: 'Ruang Rapat 2',
-    division: 'Divisi Humas & Publikasi',
-    desc: 'Koordinasi mingguan progres publikasi media sosial dan evaluasi konten berkala.'
-  },
-  {
-    id: 2,
-    day: 14,
-    month: 10,
-    year: 2024,
-    title: 'Workshop',
-    category: 'Pengembangan Skill',
-    chipClass: 'event-chip-green',
-    time: '09:00 - 12:30 WITA',
-    location: 'Aula Gedung C',
-    division: 'Divisi PSDM',
-    desc: 'Pelatihan kepemimpinan dan manajemen organisasi bagi seluruh anggota baru.'
-  },
-  {
-    id: 3,
-    day: 18,
-    month: 10,
-    year: 2024,
-    title: 'SIOMAS Fest',
-    category: 'Program Kerja Utama',
-    chipClass: 'event-chip-yellow',
-    time: '08:00 - 18:00 WITA',
-    location: 'Lapangan Utama Kampus',
-    division: 'Seluruh Divisi',
-    desc: 'Festival tahunan organisasi mahasiswa yang menampilkan expo karya, seni, dan kolaborasi UKM.'
-  },
-  {
-    id: 4,
-    day: 22,
-    month: 10,
-    year: 2024,
-    title: 'Rapat Koordinasi Akhir',
-    category: 'Manajemen',
-    chipClass: 'event-chip-purple',
-    time: '15:30 - 17:30 WITA',
-    location: 'Aula Gedung C',
-    division: 'Pengurus Harian & Anggota',
-    desc: 'Evaluasi pencapaian target dan program kerja semester ganjil.'
-  }
-];
+function mapScheduleToEvent(item) {
+  const d = new Date(item.waktu);
+  const valid = !isNaN(d.getTime());
+  const chipMap = {
+    'Internal': 'event-chip-blue',
+    'Divisi': 'event-chip-green',
+    'Umum': 'event-chip-yellow'
+  };
+  return {
+    id: item.id,
+    day: valid ? d.getDate() : 1,
+    month: valid ? d.getMonth() : 0,
+    year: valid ? d.getFullYear() : new Date().getFullYear(),
+    title: item.judul_kegiatan,
+    category: item.kategori || 'Umum',
+    chipClass: chipMap[item.kategori] || 'event-chip-blue',
+    time: valid ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} WITA` : '-',
+    location: item.lokasi || 'Kampus SIOMAS',
+    division: item.pic_name || 'Pengurus Divisi',
+    desc: item.keterangan || 'Jadwal kegiatan organisasi.'
+  };
+}
 
-function ModalTambahAgenda({ onClose, onSave, showToast }) {
+function ModalTambahAgenda({ onClose, onSave, submitting }) {
+  const todayStr = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState({
     judul: '',
-    tanggal: '2024-11-20',
+    tanggal: todayStr,
     waktuMulai: '14:00',
-    waktuSelesai: '16:00',
     lokasi: '',
-    tipe: 'Rapat',
-    divisi: 'Divisi Pengurus',
+    kategori: 'Divisi',
     deskripsi: ''
   });
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.judul.trim() || !form.tanggal) {
-      if (showToast) showToast('Harap isi Judul dan Tanggal Agenda.', 'warning');
-      return;
-    }
-
-    const typeChipMap = {
-      'Rapat': { chip: 'event-chip-blue', cat: 'Internal Divisi' },
-      'Workshop': { chip: 'event-chip-green', cat: 'Pengembangan Skill' },
-      'Acara': { chip: 'event-chip-yellow', cat: 'Program Kerja Utama' },
-      'Lainnya': { chip: 'event-chip-purple', cat: 'Manajemen' }
-    };
-
-    const mapping = typeChipMap[form.tipe] || typeChipMap['Rapat'];
-    const parts = form.tanggal.split('-');
-    const year = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    const day = parseInt(parts[2], 10);
-
-    const timeStr = form.waktuMulai && form.waktuSelesai 
-      ? `${form.waktuMulai} - ${form.waktuSelesai} WITA`
-      : 'WITA';
-
-    const newEvt = {
-      id: Date.now(),
-      day,
-      month,
-      year,
-      title: form.judul,
-      category: mapping.cat,
-      chipClass: mapping.chip,
-      time: timeStr,
-      location: form.lokasi || 'Ruang Rapat UKM',
-      division: form.divisi || 'Pengurus Divisi',
-      desc: form.deskripsi || 'Kegiatan agenda divisi.'
-    };
-
-    onSave(newEvt);
-    if (showToast) showToast(`Agenda "${form.judul}" berhasil ditambahkan.`, 'success');
-    onClose();
+    onSave(form);
   };
 
   return (
@@ -133,35 +63,26 @@ function ModalTambahAgenda({ onClose, onSave, showToast }) {
               <input className="portal-input" placeholder="Contoh: Rapat Koordinasi Divisi" value={form.judul} onChange={(e) => setForm({ ...form, judul: e.target.value })} required />
             </div>
             <div className="portal-form-group">
-              <label className="portal-form-label">Tipe Kegiatan</label>
-              <select className="portal-select" value={form.tipe} onChange={(e) => setForm({ ...form, tipe: e.target.value })}>
-                <option>Rapat</option>
-                <option>Workshop</option>
-                <option>Acara</option>
-                <option>Lainnya</option>
+              <label className="portal-form-label">Kategori Kegiatan</label>
+              <select className="portal-select" value={form.kategori} onChange={(e) => setForm({ ...form, kategori: e.target.value })}>
+                <option value="Divisi">Divisi</option>
+                <option value="Internal">Internal</option>
+                <option value="Umum">Umum</option>
               </select>
-            </div>
-            <div className="portal-form-group">
-              <label className="portal-form-label">Tanggal</label>
-              <input type="date" className="portal-input" value={form.tanggal} onChange={(e) => setForm({ ...form, tanggal: e.target.value })} required />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div className="portal-form-group">
-                <label className="portal-form-label">Waktu Mulai</label>
-                <input type="time" className="portal-input" value={form.waktuMulai} onChange={(e) => setForm({ ...form, waktuMulai: e.target.value })} />
+                <label className="portal-form-label">Tanggal</label>
+                <input type="date" className="portal-input" value={form.tanggal} onChange={(e) => setForm({ ...form, tanggal: e.target.value })} required />
               </div>
               <div className="portal-form-group">
-                <label className="portal-form-label">Waktu Selesai</label>
-                <input type="time" className="portal-input" value={form.waktuSelesai} onChange={(e) => setForm({ ...form, waktuSelesai: e.target.value })} />
+                <label className="portal-form-label">Waktu Mulai (WITA)</label>
+                <input type="time" className="portal-input" value={form.waktuMulai} onChange={(e) => setForm({ ...form, waktuMulai: e.target.value })} required />
               </div>
             </div>
             <div className="portal-form-group">
               <label className="portal-form-label">Lokasi</label>
               <input className="portal-input" placeholder="Contoh: Ruang Rapat 2 / Aula" value={form.lokasi} onChange={(e) => setForm({ ...form, lokasi: e.target.value })} />
-            </div>
-            <div className="portal-form-group">
-              <label className="portal-form-label">Divisi Penanggung Jawab</label>
-              <input className="portal-input" placeholder="Contoh: Divisi Acara" value={form.divisi} onChange={(e) => setForm({ ...form, divisi: e.target.value })} />
             </div>
             <div className="portal-form-group">
               <label className="portal-form-label">Deskripsi (opsional)</label>
@@ -170,7 +91,9 @@ function ModalTambahAgenda({ onClose, onSave, showToast }) {
           </div>
           <div className="portal-modal-footer">
             <button type="button" className="btn-secondary" style={{ width: 'auto', padding: '9px 18px' }} onClick={onClose}>Batal</button>
-            <button type="submit" className="btn-primary-glow" style={{ padding: '9px 22px' }}>Simpan Agenda</button>
+            <button type="submit" disabled={submitting} className="btn-primary-glow" style={{ padding: '9px 22px' }}>
+              {submitting ? 'Menyimpan...' : 'Simpan Agenda'}
+            </button>
           </div>
         </form>
       </div>
@@ -179,17 +102,62 @@ function ModalTambahAgenda({ onClose, onSave, showToast }) {
 }
 
 export default function PDAgenda({ showToast }) {
-  const [currentMonth, setCurrentMonth] = useState(10); // November (0-indexed)
-  const [currentYear, setCurrentYear] = useState(2024);
+  const now = new Date();
+  const [currentMonth, setCurrentMonth] = useState(now.getMonth());
+  const [currentYear, setCurrentYear] = useState(now.getFullYear());
   const [viewMode, setViewMode] = useState('Bulan');
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [events, setEvents] = useState(INITIAL_EVENTS);
+  const [submitting, setSubmitting] = useState(false);
+  const [events, setEvents] = useState([]);
+
+  const loadSchedules = useCallback(async () => {
+    const res = await schedulesApi.getAll();
+    if (res.ok && res.data?.data) {
+      setEvents(res.data.data.map(mapScheduleToEvent));
+    } else {
+      setEvents([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSchedules();
+  }, [loadSchedules]);
+
+  const handleSaveAgenda = async (form) => {
+    if (!form.judul.trim() || !form.tanggal) {
+      if (showToast) showToast('Harap isi Judul dan Tanggal Agenda.', 'warning');
+      return;
+    }
+    setSubmitting(true);
+    const waktuStr = `${form.tanggal} ${form.waktuMulai || '14:00'}:00`;
+    const res = await schedulesApi.create({
+      judul_kegiatan: form.judul.trim(),
+      kategori: form.kategori || 'Divisi',
+      waktu: waktuStr,
+      lokasi: form.lokasi.trim() || 'Ruang Rapat UKM',
+      keterangan: form.deskripsi.trim()
+    });
+    setSubmitting(false);
+
+    if (res.ok) {
+      setShowModal(false);
+      if (showToast) showToast(`Agenda "${form.judul}" berhasil ditambahkan.`, 'success');
+      const parts = form.tanggal.split('-');
+      if (parts.length === 3) {
+        setCurrentYear(parseInt(parts[0], 10));
+        setCurrentMonth(parseInt(parts[1], 10) - 1);
+      }
+      loadSchedules();
+    } else {
+      if (showToast) showToast(res.data?.message || 'Gagal menyimpan agenda.', 'error');
+    }
+  };
 
   const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
   const getFirstDayOfMonth = (year, month) => {
     const day = new Date(year, month, 1).getDay();
-    return day === 0 ? 6 : day - 1; // 0 = Senin, 6 = Minggu
+    return day === 0 ? 6 : day - 1;
   };
 
   const daysInMonth = getDaysInMonth(currentYear, currentMonth);
@@ -214,24 +182,16 @@ export default function PDAgenda({ showToast }) {
     }
   };
 
-  const handleSaveAgenda = (newEvent) => {
-    setEvents(prev => [...prev, newEvent]);
-  };
-
-  // Build calendar days array
   const calendarDays = [];
-  // Days from previous month
   for (let i = firstDay - 1; i >= 0; i--) {
     calendarDays.push({ day: prevMonthDays - i, isCurrentMonth: false, events: [] });
   }
-  // Days in current month
   for (let d = 1; d <= daysInMonth; d++) {
     const dayEvents = events.filter(
       (e) => e.year === currentYear && e.month === currentMonth && e.day === d
     );
     calendarDays.push({ day: d, isCurrentMonth: true, events: dayEvents });
   }
-  // Days from next month to fill weeks
   const totalSlots = Math.ceil(calendarDays.length / 7) * 7;
   const remaining = (totalSlots < 35 ? 35 : totalSlots) - calendarDays.length;
   for (let d = 1; d <= remaining; d++) {
@@ -256,7 +216,7 @@ export default function PDAgenda({ showToast }) {
         </div>
       </div>
 
-      {/* Top Controls matching AnggotaAgenda */}
+      {/* Top Controls */}
       <div className="calendar-top-controls">
         <div className="calendar-month-selector">
           <button type="button" className="icon-arrow-btn" title="Bulan Sebelumnya" onClick={handlePrevMonth}>
@@ -273,7 +233,7 @@ export default function PDAgenda({ showToast }) {
             type="button" 
             className="portal-outline-btn" 
             style={{ width: 'auto', padding: '6px 14px', fontSize: '12.5px' }}
-            onClick={() => { setCurrentMonth(10); setCurrentYear(2024); }}
+            onClick={() => { setCurrentMonth(now.getMonth()); setCurrentYear(now.getFullYear()); }}
           >
             Hari ini
           </button>
@@ -297,7 +257,7 @@ export default function PDAgenda({ showToast }) {
         </div>
       </div>
 
-      {/* Full Calendar Grid matching AnggotaAgenda */}
+      {/* Full Calendar Grid */}
       <div style={{ background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '16px', overflowX: 'auto' }}>
         <table className="calendar-grid-table">
           <thead>
@@ -338,7 +298,7 @@ export default function PDAgenda({ showToast }) {
         </table>
       </div>
 
-      {/* Event Detail Modal matching AnggotaAgenda */}
+      {/* Event Detail Modal */}
       {selectedEvent && (
         <div className="portal-modal-backdrop" onClick={() => setSelectedEvent(null)}>
           <div className="portal-modal-dialog" onClick={(e) => e.stopPropagation()}>
@@ -383,7 +343,7 @@ export default function PDAgenda({ showToast }) {
                 <div className="meta-tile" style={{ gridColumn: 'span 2' }}>
                   <Users size={18} className="meta-tile-icon" />
                   <div>
-                    <div className="meta-tile-label">Divisi Penanggung Jawab</div>
+                    <div className="meta-tile-label">Penanggung Jawab</div>
                     <div className="meta-tile-value">{selectedEvent.division}</div>
                   </div>
                 </div>
@@ -409,7 +369,7 @@ export default function PDAgenda({ showToast }) {
         <ModalTambahAgenda
           onClose={() => setShowModal(false)}
           onSave={handleSaveAgenda}
-          showToast={showToast}
+          submitting={submitting}
         />
       )}
     </div>

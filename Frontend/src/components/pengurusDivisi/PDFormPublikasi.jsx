@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { ChevronLeft, UploadCloud, Shield, ChevronRight, X } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { ChevronLeft, UploadCloud, Shield, ChevronRight, Image as ImageIcon } from 'lucide-react';
+import { interUkmApi } from '../../services/api.js';
 
 export default function PDFormPublikasi({ onBack, onSubmitSuccess, showToast }) {
   const [form, setForm] = useState({
@@ -12,12 +13,37 @@ export default function PDFormPublikasi({ onBack, onSubmitSuccess, showToast }) 
     namaNarahubung: '',
     nomorWhatsapp: '+62 812 3456 7890',
     fileName: '',
+    coverName: '',
     setujuKetentuan: false
   });
 
+  const [proposalFileObj, setProposalFileObj] = useState(null);
+  const [coverFileObj, setCoverFileObj] = useState(null);
+  const [coverPreview, setCoverPreview] = useState('');
   const [status, setStatus] = useState('DRAF');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (isDraf = false) => {
+  const fileInputRef = useRef(null);
+  const coverInputRef = useRef(null);
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setProposalFileObj(file);
+    setForm(prev => ({ ...prev, fileName: `${file.name} (${(file.size / 1024).toFixed(1)} KB)` }));
+    showToast && showToast(`Berkas "${file.name}" berhasil dilampirkan.`, 'success');
+  };
+
+  const handleCoverSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCoverFileObj(file);
+    setForm(prev => ({ ...prev, coverName: `${file.name} (${(file.size / 1024).toFixed(1)} KB)` }));
+    setCoverPreview(URL.createObjectURL(file));
+    showToast && showToast(`Gambar "${file.name}" berhasil dipilih.`, 'success');
+  };
+
+  const handleSubmit = async (isDraf = false) => {
     if (!form.judulPublikasi.trim()) {
       showToast('Harap isi Judul Publikasi.', 'warning');
       return;
@@ -30,10 +56,33 @@ export default function PDFormPublikasi({ onBack, onSubmitSuccess, showToast }) 
     if (isDraf) {
       setStatus('DRAF');
       showToast(`Publikasi "${form.judulPublikasi}" disimpan sebagai draf.`, 'success');
-    } else {
+      return;
+    }
+
+    setSubmitting(true);
+    const isi = [
+      form.deskripsiKegiatan.trim() || `Publikasi ${form.kategori}`,
+      form.tanggalPelaksanaan ? `Pelaksanaan: ${form.tanggalPelaksanaan}` : '',
+      form.lokasi ? `Lokasi: ${form.lokasi}` : '',
+      form.namaNarahubung ? `PIC: ${form.namaNarahubung} (${form.nomorWhatsapp})` : '',
+      form.fileName ? `Lampiran: ${form.fileName}` : ''
+    ].filter(Boolean).join(' • ');
+
+    const res = await interUkmApi.createPost({
+      ukm_pengirim: `SIOMAS (${form.kategori})`,
+      judul: form.judulPublikasi.trim(),
+      isi_pengumuman: isi,
+      foto: coverFileObj || undefined,
+      proposal: proposalFileObj || undefined
+    });
+    setSubmitting(false);
+
+    if (res.ok) {
       setStatus('Menunggu Review');
-      onSubmitSuccess();
       showToast('Publikasi berhasil diajukan untuk persetujuan Ketua UKM.', 'success');
+      onSubmitSuccess && onSubmitSuccess();
+    } else {
+      showToast(res.data?.message || 'Gagal mengajukan publikasi.', 'error');
     }
   };
 
@@ -128,29 +177,70 @@ export default function PDFormPublikasi({ onBack, onSubmitSuccess, showToast }) 
           </div>
 
           {/* Gambar Sampul */}
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleCoverSelect}
+          />
           <div style={{ border: '1px solid #E2E8F0', borderRadius: '12px', overflow: 'hidden', marginBottom: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '12px 16px' }}>
-              <img src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=200&auto=format&fit=crop&q=80" alt="Sampul" style={{ width: '80px', height: '50px', borderRadius: '8px', objectFit: 'cover' }} />
+              {coverPreview ? (
+                <img src={coverPreview} alt="Sampul" style={{ width: '80px', height: '50px', borderRadius: '8px', objectFit: 'cover' }} />
+              ) : (
+                <div style={{ width: '80px', height: '50px', borderRadius: '8px', background: '#EEF2FF', color: '#6366F1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <ImageIcon size={20} />
+                </div>
+              )}
               <div style={{ flex: 1 }}>
                 <h6 style={{ fontSize: '13px', fontWeight: 700, margin: '0 0 2px', color: '#0F172A' }}>Gambar Sampul Publikasi</h6>
-                <p style={{ fontSize: '11px', color: '#94A3B8', margin: 0 }}>Gambar ditampilkan pada feed dan halaman detail • JPG/PNG 16:6</p>
+                <p style={{ fontSize: '11px', color: form.coverName ? '#4F46E5' : '#94A3B8', margin: 0, fontWeight: form.coverName ? 600 : 400 }}>
+                  {form.coverName || 'Gambar ditampilkan pada feed dan halaman detail • JPG/PNG'}
+                </p>
               </div>
-              <button type="button" className="portal-outline-btn" style={{ width: 'auto', padding: '7px 14px', fontSize: '12px', flexShrink: 0 }} onClick={() => showToast('Pilih gambar sampul dari perangkat Anda.', 'info')}>
+              <button
+                type="button"
+                className="portal-outline-btn"
+                style={{ width: 'auto', padding: '7px 14px', fontSize: '12px', flexShrink: 0 }}
+                onClick={() => coverInputRef.current?.click()}
+              >
                 <UploadCloud size={13} style={{ marginRight: '5px' }} /> Pilih Gambar
               </button>
             </div>
           </div>
 
           {/* Lampiran Proposal */}
-          <div className="portal-dropzone" style={{ marginBottom: '16px' }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.doc,.docx"
+            style={{ display: 'none' }}
+            onChange={handleFileSelect}
+          />
+          <div
+            className="portal-dropzone"
+            style={{ marginBottom: '16px', cursor: 'pointer' }}
+            onClick={() => fileInputRef.current?.click()}
+          >
             <div className="dropzone-left">
               <div className="dropzone-icon"><UploadCloud size={20} /></div>
               <div className="dropzone-text">
                 <h5>Lampirkan proposal kolaborasi</h5>
-                <p>{form.fileName || 'PDF atau DOCX • Maksimal 10 MB'}</p>
+                <p style={{ color: form.fileName ? '#4F46E5' : undefined, fontWeight: form.fileName ? 600 : undefined }}>
+                  {form.fileName || 'PDF atau DOCX • Maksimal 10 MB'}
+                </p>
               </div>
             </div>
-            <button type="button" className="portal-outline-btn" style={{ width: 'auto', padding: '7px 16px', fontSize: '12.5px' }} onClick={() => { setForm({ ...form, fileName: 'Proposal_Kolaborasi.pdf' }); showToast('Berkas berhasil dipilih.', 'success'); }}>
+            <button
+              type="button"
+              className="portal-outline-btn"
+              style={{ width: 'auto', padding: '7px 16px', fontSize: '12.5px' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}
+            >
               Pilih Berkas
             </button>
           </div>
@@ -169,8 +259,8 @@ export default function PDFormPublikasi({ onBack, onSubmitSuccess, showToast }) 
             <button type="button" className="btn-secondary" style={{ width: 'auto', padding: '10px 20px', fontSize: '13.5px' }} onClick={() => handleSubmit(true)}>
               Simpan sebagai Draf
             </button>
-            <button type="button" className="btn-primary-glow" style={{ padding: '10px 24px', fontSize: '13.5px' }} onClick={() => handleSubmit(false)}>
-              <ChevronRight size={14} style={{ marginRight: '5px' }} /> Ajukan Persetujuan
+            <button type="button" disabled={submitting} className="btn-primary-glow" style={{ padding: '10px 24px', fontSize: '13.5px' }} onClick={() => handleSubmit(false)}>
+              <ChevronRight size={14} style={{ marginRight: '5px' }} /> {submitting ? 'Mengirim...' : 'Ajukan Persetujuan'}
             </button>
           </div>
         </div>

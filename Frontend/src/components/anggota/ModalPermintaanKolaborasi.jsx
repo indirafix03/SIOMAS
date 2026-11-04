@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { X, UploadCloud, Image, Check } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { X, UploadCloud } from 'lucide-react';
+import { interUkmApi } from '../../services/api.js';
 
 export default function ModalPermintaanKolaborasi({ onClose, onSubmit, showToast }) {
   const [formData, setFormData] = useState({
@@ -8,23 +9,57 @@ export default function ModalPermintaanKolaborasi({ onClose, onSubmit, showToast
     bentukKolaborasi: 'Mitra Penyelenggara',
     kontribusiDibutuhkan: '',
     kontribusiDitawarkan: '',
-    tanggalPelaksanaan: '24-26 November 2024',
-    batasRespons: '20 November 2024',
-    namaNarahubung: 'Ardi Pratama',
+    tanggalPelaksanaan: '',
+    batasRespons: '',
+    namaNarahubung: '',
     nomorWhatsapp: '+62 812 3456 7890',
-    fileName: 'Proposal_Kerja_Sama_SIOMAS.pdf',
+    fileName: '',
     kirimNotifikasi: true
   });
+  const [proposalFileObj, setProposalFileObj] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef(null);
 
-  const handleSubmit = (e) => {
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setProposalFileObj(file);
+    setFormData(prev => ({ ...prev, fileName: `${file.name} (${(file.size / 1024).toFixed(1)} KB)` }));
+    showToast && showToast(`Berkas "${file.name}" berhasil dipilih.`, 'success');
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.namaProgram) {
+    if (!formData.namaProgram.trim()) {
       showToast('Harap isi Nama Program atau Kegiatan.', 'warning');
       return;
     }
-    onSubmit(formData);
-    showToast('Permintaan kolaborasi berhasil diajukan dan sedang menunggu verifikasi.', 'success');
-    onClose();
+
+    setSubmitting(true);
+    const isi = [
+      `Bentuk Kolaborasi: ${formData.bentukKolaborasi}`,
+      formData.kontribusiDibutuhkan ? `Kontribusi Dibutuhkan: ${formData.kontribusiDibutuhkan}` : '',
+      formData.kontribusiDitawarkan ? `Kontribusi Ditawarkan: ${formData.kontribusiDitawarkan}` : '',
+      formData.tanggalPelaksanaan ? `Pelaksanaan: ${formData.tanggalPelaksanaan}` : '',
+      formData.namaNarahubung ? `PIC: ${formData.namaNarahubung} (${formData.nomorWhatsapp})` : '',
+      formData.fileName ? `Lampiran: ${formData.fileName}` : ''
+    ].filter(Boolean).join(' • ');
+
+    const res = await interUkmApi.createPost({
+      ukm_pengirim: formData.ukmTujuan,
+      judul: formData.namaProgram.trim(),
+      isi_pengumuman: isi,
+      proposal: proposalFileObj || undefined
+    });
+    setSubmitting(false);
+
+    if (res.ok) {
+      showToast('Permintaan kolaborasi berhasil diajukan dan sedang menunggu verifikasi Ketua UKM.', 'success');
+      onSubmit(formData);
+      onClose();
+    } else {
+      showToast(res.data?.message || 'Gagal mengajukan permintaan kolaborasi.', 'error');
+    }
   };
 
   return (
@@ -48,7 +83,7 @@ export default function ModalPermintaanKolaborasi({ onClose, onSubmit, showToast
               <input
                 type="text"
                 className="portal-input"
-                placeholder="Contoh: SIOMAS Leadership Camp 2024"
+                placeholder="Contoh: SIOMAS Leadership Camp"
                 value={formData.namaProgram}
                 onChange={(e) => setFormData({ ...formData, namaProgram: e.target.value })}
                 required
@@ -87,29 +122,6 @@ export default function ModalPermintaanKolaborasi({ onClose, onSubmit, showToast
               </div>
             </div>
 
-            {/* Gambar Sampul */}
-            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <img 
-                  src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=200&auto=format&fit=crop&q=80" 
-                  alt="Sampul" 
-                  style={{ width: '80px', height: '50px', borderRadius: '8px', objectFit: 'cover' }}
-                />
-                <div>
-                  <h6 style={{ fontSize: '13px', fontWeight: 700, margin: 0, color: '#0F172A' }}>Gambar sampul kolaborasi</h6>
-                  <p style={{ fontSize: '11px', color: '#94A3B8', margin: '2px 0 0' }}>JPG atau PNG • Rasio rekomendasi 16:9</p>
-                </div>
-              </div>
-              <button 
-                type="button" 
-                className="portal-outline-btn" 
-                style={{ width: 'auto', padding: '6px 14px', fontSize: '12px' }}
-                onClick={() => showToast('Pilih gambar baru dari penyimpanan Anda.', 'info')}
-              >
-                Ganti Gambar
-              </button>
-            </div>
-
             {/* Kontribusi */}
             <div className="portal-form-group">
               <label className="portal-form-label">Kontribusi yang Dibutuhkan</label>
@@ -138,9 +150,8 @@ export default function ModalPermintaanKolaborasi({ onClose, onSubmit, showToast
               <div className="portal-form-group">
                 <label className="portal-form-label">Tanggal Pelaksanaan</label>
                 <input
-                  type="text"
+                  type="date"
                   className="portal-input"
-                  placeholder="Contoh: 24-26 November 2024"
                   value={formData.tanggalPelaksanaan}
                   onChange={(e) => setFormData({ ...formData, tanggalPelaksanaan: e.target.value })}
                 />
@@ -149,9 +160,8 @@ export default function ModalPermintaanKolaborasi({ onClose, onSubmit, showToast
               <div className="portal-form-group">
                 <label className="portal-form-label">Batas Respons</label>
                 <input
-                  type="text"
+                  type="date"
                   className="portal-input"
-                  placeholder="Contoh: 20 November 2024"
                   value={formData.batasRespons}
                   onChange={(e) => setFormData({ ...formData, batasRespons: e.target.value })}
                 />
@@ -184,44 +194,40 @@ export default function ModalPermintaanKolaborasi({ onClose, onSubmit, showToast
             </div>
 
             {/* Lampiran Proposal Dropzone */}
-            <div className="portal-dropzone">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx"
+              style={{ display: 'none' }}
+              onChange={handleFileChange}
+            />
+            <div
+              className="portal-dropzone"
+              style={{ cursor: 'pointer' }}
+              onClick={() => fileInputRef.current?.click()}
+            >
               <div className="dropzone-left">
                 <div className="dropzone-icon">
                   <UploadCloud size={20} />
                 </div>
                 <div className="dropzone-text">
                   <h5>Lampirkan proposal kerja sama</h5>
-                  <p>{formData.fileName || 'PDF atau DOCX • Maksimal 10 MB'}</p>
+                  <p style={{ color: formData.fileName ? '#4F46E5' : undefined, fontWeight: formData.fileName ? 600 : undefined }}>
+                    {formData.fileName || 'PDF atau DOCX • Maksimal 10 MB'}
+                  </p>
                 </div>
               </div>
               <button 
                 type="button" 
                 className="portal-outline-btn"
                 style={{ width: 'auto', padding: '7px 16px', fontSize: '12.5px' }}
-                onClick={() => {
-                  setFormData({ ...formData, fileName: 'Proposal_Kolaborasi_Final.pdf' });
-                  showToast('Berkas proposal berhasil dipilih.', 'success');
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fileInputRef.current?.click();
                 }}
               >
                 Pilih Berkas
               </button>
-            </div>
-
-            {/* Notification Checkbox */}
-            <div style={{ background: '#FFFBEB', border: '1px solid #FEF3C7', borderRadius: '12px', padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-              <input
-                type="checkbox"
-                id="notif_check"
-                checked={formData.kirimNotifikasi}
-                onChange={(e) => setFormData({ ...formData, kirimNotifikasi: e.target.checked })}
-                style={{ marginTop: '3px', width: '16px', height: '16px', cursor: 'pointer' }}
-              />
-              <label htmlFor="notif_check" style={{ fontSize: '13px', color: '#92400E', cursor: 'pointer', lineHeight: '1.4' }}>
-                <strong>Kirim notifikasi kepada UKM tujuan</strong>
-                <div style={{ fontSize: '12px', color: '#B45309', marginTop: '2px' }}>
-                  Pengurus organisasi tujuan akan menerima pemberitahuan dan batas waktu respons.
-                </div>
-              </label>
             </div>
           </div>
 
@@ -236,10 +242,11 @@ export default function ModalPermintaanKolaborasi({ onClose, onSubmit, showToast
             </button>
             <button 
               type="submit" 
+              disabled={submitting}
               className="btn-primary-glow"
               style={{ padding: '9px 22px', fontSize: '13.5px' }}
             >
-              Ajukan Persetujuan
+              {submitting ? 'Mengirim...' : 'Ajukan Persetujuan'}
             </button>
           </div>
         </form>

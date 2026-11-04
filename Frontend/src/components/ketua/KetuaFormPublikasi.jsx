@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { ChevronLeft, Check } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { ChevronLeft, Check, UploadCloud, FileText, Image as ImageIcon } from 'lucide-react';
+import { interUkmApi } from '../../services/api.js';
 
 export default function KetuaFormPublikasi({ onBack, showToast }) {
   const [form, setForm] = useState({
@@ -8,10 +9,68 @@ export default function KetuaFormPublikasi({ onBack, showToast }) {
     narahubung: '', whatsapp: '',
     setuju: false
   });
+  const [proposalFile, setProposalFile] = useState(null);
+  const [coverFile, setCoverFile] = useState(null);
+  const [coverPreview, setCoverPreview] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const proposalInputRef = useRef(null);
+  const coverInputRef = useRef(null);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setForm(p => ({ ...p, [name]: type === 'checkbox' ? checked : value }));
+  };
+
+  const handleProposalChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setProposalFile(file);
+    showToast && showToast(`Berkas "${file.name}" berhasil dilampirkan.`, 'success');
+  };
+
+  const handleCoverChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCoverFile(file);
+    setCoverPreview(URL.createObjectURL(file));
+    showToast && showToast(`Gambar "${file.name}" berhasil dipilih.`, 'success');
+  };
+
+  const handleSubmit = async () => {
+    if (!form.judul.trim() || !form.deskripsi.trim()) {
+      showToast && showToast('Judul dan deskripsi kegiatan wajib diisi', 'error');
+      return;
+    }
+    if (!form.setuju) {
+      showToast && showToast('Centang persetujuan terlebih dahulu', 'error');
+      return;
+    }
+
+    setSubmitting(true);
+    const detailIsi = [
+      form.deskripsi.trim(),
+      form.tanggal ? `Pelaksanaan: ${form.tanggal}` : '',
+      form.lokasi ? `Lokasi: ${form.lokasi}` : '',
+      form.narahubung ? `Narahubung: ${form.narahubung} (${form.whatsapp || '-'})` : '',
+      proposalFile ? `Lampiran: ${proposalFile.name} (${(proposalFile.size / 1024).toFixed(1)} KB)` : ''
+    ].filter(Boolean).join(' • ');
+
+    const res = await interUkmApi.createPost({
+      ukm_pengirim: `SIOMAS (${form.kategori})`,
+      judul: form.judul.trim(),
+      isi_pengumuman: detailIsi,
+      foto: coverFile || undefined,
+      proposal: proposalFile || undefined
+    });
+    setSubmitting(false);
+
+    if (res.ok) {
+      showToast && showToast('Publikasi berhasil dikirim untuk verifikasi di Hub Inter-UKM!', 'success');
+      onBack && onBack();
+    } else {
+      showToast && showToast(res.data?.message || 'Gagal mengajukan publikasi.', 'error');
+    }
   };
 
   return (
@@ -91,28 +150,67 @@ export default function KetuaFormPublikasi({ onBack, showToast }) {
               </div>
             </div>
 
-            {/* Cover image */}
+            {/* Cover image upload */}
+            <input
+              ref={coverInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleCoverChange}
+            />
             <div style={{ border: '1px solid #E2E8F0', borderRadius: '10px', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=120&q=80" alt="" style={{ width: '90px', height: '68px', objectFit: 'cover', borderRadius: '8px' }} />
+              {coverPreview ? (
+                <img src={coverPreview} alt="Sampul" style={{ width: '90px', height: '68px', objectFit: 'cover', borderRadius: '8px' }} />
+              ) : (
+                <div style={{ width: '90px', height: '68px', borderRadius: '8px', background: '#EEF2FF', color: '#4F46E5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <ImageIcon size={24} />
+                </div>
+              )}
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>Gambar Sampul Publikasi</div>
-                <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '2px' }}>Gambar ditampilkan pada feed dan halaman detail. • JPG/PNG 16:6</div>
-                <button style={{ background: 'none', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px', fontFamily: 'inherit', fontWeight: 600, marginTop: '8px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  ↑ Pilih Gambar
+                <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '2px' }}>
+                  {coverFile ? `${coverFile.name} (${(coverFile.size / 1024).toFixed(1)} KB)` : 'Gambar ditampilkan pada feed dan halaman detail. • JPG/PNG'}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => coverInputRef.current?.click()}
+                  style={{ background: 'none', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px', fontFamily: 'inherit', fontWeight: 600, marginTop: '8px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                >
+                  <UploadCloud size={14} /> Pilih Gambar
                 </button>
               </div>
             </div>
 
             {/* Proposal upload */}
-            <div style={{ border: '1.5px dashed #E2E8F0', borderRadius: '10px', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <input
+              ref={proposalInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx"
+              style={{ display: 'none' }}
+              onChange={handleProposalChange}
+            />
+            <div
+              onClick={() => proposalInputRef.current?.click()}
+              style={{ border: '1.5px dashed #E2E8F0', borderRadius: '10px', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+            >
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                <div style={{ width: '32px', height: '32px', background: '#EEF2FF', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4F46E5' }}>↑</div>
+                <div style={{ width: '32px', height: '32px', background: '#EEF2FF', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4F46E5' }}>
+                  <FileText size={16} />
+                </div>
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>Lampirkan proposal kolaborasi</div>
-                  <div style={{ fontSize: '12px', color: '#94A3B8' }}>PDF atau DOCX • Maksimal 10 MB</div>
+                  <div style={{ fontSize: '12px', color: proposalFile ? '#4F46E5' : '#94A3B8', fontWeight: proposalFile ? 600 : 400 }}>
+                    {proposalFile ? `${proposalFile.name} (${(proposalFile.size / 1024).toFixed(1)} KB)` : 'PDF atau DOCX • Maksimal 10 MB'}
+                  </div>
                 </div>
               </div>
-              <button style={{ background: 'none', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontSize: '13px', color: '#0F172A', fontFamily: 'inherit', fontWeight: 600 }}>Pilih Berkas</button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); proposalInputRef.current?.click(); }}
+                style={{ background: 'none', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontSize: '13px', color: '#0F172A', fontFamily: 'inherit', fontWeight: 600 }}
+              >
+                Pilih Berkas
+              </button>
             </div>
 
             {/* Confirm checkbox */}
@@ -129,12 +227,13 @@ export default function KetuaFormPublikasi({ onBack, showToast }) {
               <button className="btn-secondary" style={{ width: 'auto', padding: '11px 20px' }} onClick={() => showToast && showToast('Draft tersimpan', 'success')}>
                 Simpan sebagai Draf
               </button>
-              <button className="btn-primary" style={{ width: 'auto', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
-                onClick={() => {
-                  if (!form.setuju) { showToast && showToast('Centang persetujuan terlebih dahulu', 'error'); return; }
-                  showToast && showToast('Publikasi dikirim untuk verifikasi Ketua UKM', 'success');
-                }}>
-                Lanjut ke Verifikasi ›
+              <button
+                className="btn-primary"
+                disabled={submitting}
+                style={{ width: 'auto', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
+                onClick={handleSubmit}
+              >
+                {submitting ? 'Mengirim...' : 'Lanjut ke Verifikasi ›'}
               </button>
             </div>
           </div>

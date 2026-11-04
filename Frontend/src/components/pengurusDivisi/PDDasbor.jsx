@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Users, CheckSquare, Calendar, Eye, X } from 'lucide-react';
 
 // Modal Buat Delegasi Tugas Baru
@@ -13,6 +13,7 @@ function ModalBuatDelegasi({ onClose, onSave, showToast }) {
     fileName: '',
     kirimNotifikasi: true
   });
+  const fileInputRef = useRef(null);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -104,19 +105,34 @@ function ModalBuatDelegasi({ onClose, onSave, showToast }) {
             </div>
 
             {/* Lampiran */}
-            <div className="portal-dropzone">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,image/*"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  setForm({ ...form, fileName: `${file.name} (${(file.size / 1024).toFixed(1)} KB)` });
+                  showToast(`Berkas "${file.name}" berhasil dipilih.`, 'success');
+                }
+              }}
+            />
+            <div className="portal-dropzone" style={{ cursor: 'pointer' }} onClick={() => fileInputRef.current?.click()}>
               <div className="dropzone-left">
-                <div className="dropzone-icon"><X size={18} style={{ display: 'none' }} /><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+                <div className="dropzone-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
                 <div className="dropzone-text">
                   <h5>Lampirkan dokumen pendukung</h5>
-                  <p>{form.fileName || 'PDF, DOCX, atau gambar • Maksimal 10 MB'}</p>
+                  <p style={{ color: form.fileName ? '#4F46E5' : undefined, fontWeight: form.fileName ? 600 : undefined }}>
+                    {form.fileName || 'PDF, DOCX, atau gambar • Maksimal 10 MB'}
+                  </p>
                 </div>
               </div>
               <button
                 type="button"
                 className="portal-outline-btn"
                 style={{ width: 'auto', padding: '7px 16px', fontSize: '12.5px' }}
-                onClick={() => { setForm({ ...form, fileName: 'Dokumen_Pendukung.pdf' }); showToast('Berkas berhasil dipilih.', 'success'); }}
+                onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
               >
                 Pilih Berkas
               </button>
@@ -154,11 +170,7 @@ function ModalBuatDelegasi({ onClose, onSave, showToast }) {
 
 export default function PDDasbor({ onNavigate, showToast }) {
   const [showModalDelegasi, setShowModalDelegasi] = useState(false);
-  const [tasks, setTasks] = useState([
-    { id: 1, title: 'Finalisasi Rundown SIOMAS Fest', assignee: 'Dewi Lestari', deadline: 'Hari ini', deadlineClass: 'deadline-red', done: false },
-    { id: 2, title: 'Konfirmasi Vendor Panggung', assignee: 'Made Arya', deadline: 'Besok', deadlineClass: 'deadline-orange', done: false },
-    { id: 3, title: 'Briefing Volunteer', assignee: 'Rafi Akbar', deadline: '22 Nov', deadlineClass: 'deadline-blue', done: false }
-  ]);
+  const [tasks, setTasks] = useState([]);
 
   const toggleTask = (id) => {
     setTasks(tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
@@ -190,13 +202,13 @@ export default function PDDasbor({ onNavigate, showToast }) {
         <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '200px', height: '200px', background: 'rgba(16, 185, 129, 0.15)', borderRadius: '50%' }} />
         <div style={{ position: 'absolute', bottom: '-60px', right: '80px', width: '150px', height: '150px', background: 'rgba(6, 95, 70, 0.3)', borderRadius: '50%' }} />
         <span style={{ background: '#10B981', color: '#fff', fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '20px', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-          Divisi Acara
+          Divisi Organisasi
         </span>
         <h1 style={{ fontSize: '32px', fontWeight: 800, color: '#fff', margin: '12px 0 8px' }}>
-          Halo, Koordinator Ardi
+          Dasbor Koordinator Divisi
         </h1>
         <p style={{ color: '#A7F3D0', fontSize: '14px', margin: 0 }}>
-          4 tugas membutuhkan perhatian dan tingkat kehadiran divisi berada di 89% bulan ini.
+          {tasks.filter(t => !t.done).length} tugas berjalan di divisi Anda.
         </p>
         <button
           type="button"
@@ -215,8 +227,8 @@ export default function PDDasbor({ onNavigate, showToast }) {
             <Users size={22} />
           </div>
           <div className="portal-stat-info">
-            <span className="portal-stat-label">Anggota divisi</span>
-            <span className="portal-stat-number">18</span>
+            <span className="portal-stat-label">Total tugas</span>
+            <span className="portal-stat-number">{tasks.length}</span>
           </div>
         </div>
         <div className="portal-stat-card">
@@ -225,7 +237,7 @@ export default function PDDasbor({ onNavigate, showToast }) {
           </div>
           <div className="portal-stat-info">
             <span className="portal-stat-label">Tugas berjalan</span>
-            <span className="portal-stat-number">9</span>
+            <span className="portal-stat-number">{tasks.filter(t => !t.done).length}</span>
           </div>
         </div>
         <div className="portal-stat-card">
@@ -233,8 +245,8 @@ export default function PDDasbor({ onNavigate, showToast }) {
             <Calendar size={22} />
           </div>
           <div className="portal-stat-info">
-            <span className="portal-stat-label">Agenda minggu ini</span>
-            <span className="portal-stat-number">4</span>
+            <span className="portal-stat-label">Tugas selesai</span>
+            <span className="portal-stat-number">{tasks.filter(t => t.done).length}</span>
           </div>
         </div>
         <div className="portal-stat-card">
@@ -242,8 +254,8 @@ export default function PDDasbor({ onNavigate, showToast }) {
             <Eye size={22} />
           </div>
           <div className="portal-stat-info">
-            <span className="portal-stat-label">Kehadiran</span>
-            <span className="portal-stat-number">89%</span>
+            <span className="portal-stat-label">Penyelesaian</span>
+            <span className="portal-stat-number">{tasks.length > 0 ? Math.round((tasks.filter(t => t.done).length / tasks.length) * 100) : 0}%</span>
           </div>
         </div>
       </div>
@@ -268,58 +280,49 @@ export default function PDDasbor({ onNavigate, showToast }) {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {tasks.map((task) => (
-              <div key={task.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #F1F5F9' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <button
-                    type="button"
-                    onClick={() => toggleTask(task.id)}
-                    style={{
-                      width: '20px', height: '20px',
-                      borderRadius: '5px',
-                      border: `2px solid ${task.done ? '#10B981' : '#CBD5E1'}`,
-                      background: task.done ? '#10B981' : 'transparent',
-                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      flexShrink: 0
-                    }}
-                  >
-                    {task.done && <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                  </button>
-                  <div>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: task.done ? '#94A3B8' : '#0F172A', textDecoration: task.done ? 'line-through' : 'none' }}>
-                      {task.title}
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#64748B' }}>Ditugaskan kepada {task.assignee}</div>
-                  </div>
-                </div>
-                <span style={{ fontSize: '12px', fontWeight: 600, padding: '3px 10px', borderRadius: '20px', background: task.deadlineClass === 'deadline-red' ? '#FEE2E2' : task.deadlineClass === 'deadline-orange' ? '#FFEDD5' : '#EFF6FF', color: task.deadlineClass === 'deadline-red' ? '#DC2626' : task.deadlineClass === 'deadline-orange' ? '#D97706' : '#3B82F6' }}>
-                  {task.deadline}
-                </span>
+            {tasks.length === 0 ? (
+              <div style={{ padding: '28px 16px', textAlign: 'center', color: '#94A3B8', fontSize: '13.5px' }}>
+                Belum ada tugas yang didelegasikan. Klik <strong>+ Tugas Baru</strong> untuk menambahkan.
               </div>
-            ))}
+            ) : (
+              tasks.map((task) => (
+                <div key={task.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #F1F5F9' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <button
+                      type="button"
+                      onClick={() => toggleTask(task.id)}
+                      style={{
+                        width: '20px', height: '20px',
+                        borderRadius: '5px',
+                        border: `2px solid ${task.done ? '#10B981' : '#CBD5E1'}`,
+                        background: task.done ? '#10B981' : 'transparent',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0
+                      }}
+                    >
+                      {task.done && <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                    </button>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: task.done ? '#94A3B8' : '#0F172A', textDecoration: task.done ? 'line-through' : 'none' }}>
+                        {task.title}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748B' }}>Ditugaskan kepada {task.assignee}</div>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: '12px', fontWeight: 600, padding: '3px 10px', borderRadius: '20px', background: task.deadlineClass === 'deadline-red' ? '#FEE2E2' : task.deadlineClass === 'deadline-orange' ? '#FFEDD5' : '#EFF6FF', color: task.deadlineClass === 'deadline-red' ? '#DC2626' : task.deadlineClass === 'deadline-orange' ? '#D97706' : '#3B82F6' }}>
+                    {task.deadline}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
         {/* Right: Presensi terkini */}
         <div className="portal-card" style={{ textAlign: 'center' }}>
           <h3 className="portal-card-title" style={{ textAlign: 'center', marginBottom: '20px' }}>Presensi terkini</h3>
-          {/* Donut Chart */}
-          <div style={{ position: 'relative', width: '140px', height: '140px', margin: '0 auto 16px' }}>
-            <svg width="140" height="140" viewBox="0 0 140 140">
-              <circle cx="70" cy="70" r="55" fill="none" stroke="#E2E8F0" strokeWidth="18" />
-              <circle cx="70" cy="70" r="55" fill="none" stroke="#6366F1" strokeWidth="18"
-                strokeDasharray={`${2 * Math.PI * 55 * 0.89} ${2 * Math.PI * 55 * 0.11}`}
-                strokeDashoffset={2 * Math.PI * 55 * 0.25}
-                strokeLinecap="round"
-              />
-            </svg>
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A' }}>89%</span>
-              <span style={{ fontSize: '11px', color: '#64748B' }}>Kehadiran</span>
-            </div>
-          </div>
           <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '20px' }}>
-            16 dari 18 anggota hadir pada agenda terakhir.
+            Kelola daftar hadir anggota divisi Anda melalui modul presensi.
           </p>
           <button type="button" className="portal-outline-btn" onClick={() => onNavigate('pd-delegasi')}>
             Buka Modul Presensi

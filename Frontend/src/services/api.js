@@ -29,8 +29,9 @@ export const clearAuth = () => {
 
 export const apiFetch = async (endpoint, options = {}) => {
   const token = getAuthToken();
+  const isFormData = options.body instanceof FormData;
   const headers = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     ...(options.headers || {})
   };
@@ -111,6 +112,26 @@ export const announcementsApi = {
       method: 'POST',
       body: JSON.stringify({ is_read: isRead })
     });
+  },
+
+  create: async (payload) => {
+    return apiFetch('/admin/announcements', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  update: async (id, payload) => {
+    return apiFetch(`/admin/announcements/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  delete: async (id) => {
+    return apiFetch(`/admin/announcements/${id}`, {
+      method: 'DELETE'
+    });
   }
 };
 
@@ -123,6 +144,26 @@ export const schedulesApi = {
 
   getById: async (id) => {
     return apiFetch(`/schedules/${id}`);
+  },
+
+  create: async (payload) => {
+    return apiFetch('/schedules', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  update: async (id, payload) => {
+    return apiFetch(`/schedules/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  delete: async (id) => {
+    return apiFetch(`/schedules/${id}`, {
+      method: 'DELETE'
+    });
   }
 };
 
@@ -133,16 +174,226 @@ export const documentsApi = {
     return apiFetch(`/documents${query ? `?${query}` : ''}`);
   },
 
+  upload: async (file, namaBerkas, kategori = 'LPJ') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('nama_berkas', namaBerkas);
+    formData.append('kategori', kategori);
+    return apiFetch('/documents/upload', {
+      method: 'POST',
+      body: formData
+    });
+  },
+
+  delete: async (id) => {
+    return apiFetch(`/documents/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  download: async (id, fallbackName = 'dokumen.pdf') => {
+    const token = getAuthToken();
+    const res = await fetch(`${API_BASE_URL}/documents/${id}/download`, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
+    if (!res.ok) return false;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fallbackName.toLowerCase().endsWith('.pdf') ? fallbackName : `${fallbackName}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return true;
+  },
+
   getDownloadUrl: (id) => {
     return `${API_BASE_URL}/documents/${id}/download`;
   }
 };
 
+// LPJ Upload & Validation API Calls (UC-06 & UC-09)
+export const lpjApi = {
+  uploadDraft: async (file, namaBerkas) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('nama_berkas', namaBerkas);
+    return apiFetch('/lpj/upload', {
+      method: 'POST',
+      body: formData
+    });
+  },
+
+  getMySubmissions: async () => {
+    return apiFetch('/lpj/my-submissions');
+  },
+
+  getPendingValidation: async (search = '') => {
+    const q = search ? `?search=${encodeURIComponent(search)}` : '';
+    return apiFetch(`/lpj-validation/pending${q}`);
+  },
+
+  validate: async (documentId, status, catatanRevisi = '') => {
+    return apiFetch(`/lpj-validation/${documentId}/validate`, {
+      method: 'POST',
+      body: JSON.stringify({ status, catatan_revisi: catatanRevisi })
+    });
+  },
+
+  getHistory: async () => {
+    return apiFetch('/lpj-validation/history');
+  }
+};
+
+// Sipakamase API Calls (UC-08)
+export const sipakamaseApi = {
+  getAll: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiFetch(`/sipakamase${query ? `?${query}` : ''}`);
+  },
+
+  upload: async (file, namaBerkas) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('nama_berkas', namaBerkas);
+    return apiFetch('/sipakamase/upload', {
+      method: 'POST',
+      body: formData
+    });
+  },
+
+  verify: async (documentId, status, catatan = '') => {
+    return apiFetch(`/sipakamase/${documentId}/verify`, {
+      method: 'POST',
+      body: JSON.stringify({ status, catatan })
+    });
+  }
+};
+
 // Inter-UKM API Calls (UC-11)
+export const parseInterUkmPost = (item) => {
+  const isPending = item.status_persetujuan === 'Pending';
+  const dateStr = item.date
+    ? new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+    : 'Baru saja';
+
+  const rawOrg = item.ukm_pengirim || 'SIOMAS';
+  const cleanWords = rawOrg.replace(/[^a-zA-Z0-9\s]/g, ' ').trim().split(/\s+/).filter(Boolean);
+  const initials = cleanWords.length >= 2
+    ? (cleanWords[0][0] + cleanWords[1][0]).toUpperCase()
+    : (cleanWords[0] || 'UK').slice(0, 2).toUpperCase();
+
+  const rawIsi = item.isi_pengumuman || '';
+  const parts = rawIsi.split(' • ').map(s => s.trim()).filter(Boolean);
+
+  let pelaksanaan = dateStr;
+  let tempat = 'Kampus SIOMAS';
+  let contactPerson = item.created_by_name || 'Pengurus UKM';
+  let contactWa = '-';
+  let fileName = '';
+  let fileSize = '';
+  let fotoUrl = '';
+  let fileUrl = '';
+  const descParts = [];
+
+  const backendOrigin = API_BASE_URL.replace(/\/api\/v1$/, '');
+
+  for (const part of parts) {
+    if (part.startsWith('Pelaksanaan:')) {
+      pelaksanaan = part.replace('Pelaksanaan:', '').trim();
+    } else if (part.startsWith('Lokasi:')) {
+      tempat = part.replace('Lokasi:', '').trim();
+    } else if (part.startsWith('PIC:') || part.startsWith('Narahubung:')) {
+      const picRaw = part.replace(/^(PIC|Narahubung):/, '').trim();
+      const match = picRaw.match(/^(.+?)\s*\((.+)\)$/);
+      if (match) {
+        contactPerson = match[1].trim();
+        contactWa = match[2].trim();
+      } else {
+        contactPerson = picRaw;
+      }
+    } else if (part.startsWith('Lampiran:')) {
+      const lampRaw = part.replace('Lampiran:', '').trim();
+      const match = lampRaw.match(/^(.+?)\s*\((.+)\)$/);
+      if (match) {
+        fileName = match[1].trim();
+        fileSize = match[2].trim();
+      } else {
+        fileName = lampRaw;
+      }
+    } else if (part.startsWith('FotoURL:')) {
+      const p = part.replace('FotoURL:', '').trim();
+      fotoUrl = p.startsWith('http') ? p : `${backendOrigin}${p}`;
+    } else if (part.startsWith('FileURL:')) {
+      const p = part.replace('FileURL:', '').trim();
+      fileUrl = p.startsWith('http') ? p : `${backendOrigin}${p}`;
+    } else {
+      descParts.push(part);
+    }
+  }
+
+  const cleanDesc = descParts.length > 0 ? descParts.join(' • ') : rawIsi;
+
+  return {
+    id: item.id,
+    org: rawOrg,
+    orgName: rawOrg,
+    publishedBy: rawOrg,
+    orgInitial: initials,
+    orgCode: initials,
+    orgBadgeClass: 'org-blue',
+    orgColor: isPending ? '#F59E0B' : '#4F46E5',
+    orgType: 'Organisasi mahasiswa kampus',
+    waktu: dateStr,
+    timeAgo: dateStr,
+    kategori: isPending ? 'Menunggu Verifikasi' : 'Kolaborasi',
+    category: isPending ? 'Menunggu Verifikasi' : 'Kolaborasi',
+    tagClass: isPending ? 'tag-gray' : 'tag-purple',
+    kategoriColor: '#4F46E5',
+    judul: item.judul,
+    headline: item.judul,
+    konten: item.judul,
+    img: fotoUrl,
+    image: fotoUrl,
+    bannerImage: fotoUrl,
+    desc: cleanDesc,
+    deskripsi: cleanDesc,
+    detail: cleanDesc,
+    tertarik: 0,
+    likes: 0,
+    isLiked: false,
+    status: isPending ? 'pending' : 'approved',
+    isPublished: !isPending,
+    contactName: contactPerson,
+    contactPerson: contactPerson,
+    contactRole: rawOrg,
+    contactWa: contactWa,
+    tanggal: pelaksanaan,
+    pelaksanaan: pelaksanaan,
+    tempat: tempat,
+    proposal: fileName,
+    fileName: fileName,
+    proposalSize: fileSize || 'Dokumen',
+    fileSize: fileSize || 'Dokumen',
+    fileUrl: fileUrl,
+    followers: 'Aktif'
+  };
+};
+
 export const interUkmApi = {
   getFeed: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return apiFetch(`/interukm/feed${query ? `?${query}` : ''}`);
+  },
+
+  getPending: async () => {
+    return apiFetch('/interukm/posts/pending');
+  },
+
+  getMyPosts: async () => {
+    return apiFetch('/interukm/my-posts');
   },
 
   getById: async (id) => {
@@ -150,9 +401,45 @@ export const interUkmApi = {
   },
 
   createPost: async (postData) => {
+    if (postData.foto instanceof File || postData.proposal instanceof File) {
+      const fd = new FormData();
+      fd.append('ukm_pengirim', postData.ukm_pengirim || 'SIOMAS');
+      fd.append('judul', postData.judul || '');
+      fd.append('isi_pengumuman', postData.isi_pengumuman || '');
+      if (postData.foto instanceof File) {
+        fd.append('foto', postData.foto);
+      }
+      if (postData.proposal instanceof File) {
+        fd.append('proposal', postData.proposal);
+      }
+      return apiFetch('/interukm/posts', {
+        method: 'POST',
+        body: fd
+      });
+    }
     return apiFetch('/interukm/posts', {
       method: 'POST',
       body: JSON.stringify(postData)
     });
+  },
+
+  approve: async (id) => {
+    return apiFetch(`/interukm/posts/${id}/approve`, {
+      method: 'POST'
+    });
+  },
+
+  reject: async (id, alasan = '') => {
+    return apiFetch(`/interukm/posts/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ alasan_penolakan: alasan })
+    });
+  }
+};
+
+// Notifications / Email Logs API Calls (UC-12)
+export const notificationsApi = {
+  getEmailLogs: async () => {
+    return apiFetch('/notifications/email-logs');
   }
 };

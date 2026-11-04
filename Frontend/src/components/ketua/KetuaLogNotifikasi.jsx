@@ -1,20 +1,39 @@
-import React, { useState } from 'react';
-
-const emailLogs = [
-  { id: 1, subjek: 'Pengumuman: Rapat Koordinasi', penerima: '96 penerima', status: 'Delivered', statusColor: '#10B981', attempt: 'Attempt-1', openRate: '68%' },
-  { id: 2, subjek: 'Reminder: SIOMAS Fest', penerima: '84 penerima', status: 'Opened', statusColor: '#4F46E5', attempt: 'Attempt-1', openRate: '81%' },
-  { id: 3, subjek: 'Revisi LPJ Divisi Humas', penerima: '1 penerima', status: 'Failed', statusColor: '#EF4444', attempt: 'Attempt-2', openRate: '—' },
-  { id: 4, subjek: 'Verifikasi Anggota Baru', penerima: '4 penerima', status: 'Queued', statusColor: '#F59E0B', attempt: 'Attempt-1', openRate: '—' }
-];
+import React, { useState, useEffect } from 'react';
+import { notificationsApi } from '../../services/api.js';
 
 export default function KetuaLogNotifikasi() {
   const [activeTab, setActiveTab] = useState('Semua');
+  const [emailLogs, setEmailLogs] = useState([]);
+
+  useEffect(() => {
+    async function loadLogs() {
+      const res = await notificationsApi.getEmailLogs();
+      if (res.ok && res.data?.data) {
+        const mapped = res.data.data.map(l => ({
+          id: l.id,
+          subjek: l.subjek || 'Notifikasi SIOMAS',
+          penerima: l.email_tujuan || '-',
+          status: l.status_kirim || 'Sent',
+          statusColor: l.status_kirim === 'Failed' ? '#EF4444' : '#10B981',
+          attempt: `Attempt-${l.retry_count || 1}`,
+          openRate: l.waktu_kirim ? new Date(l.waktu_kirim).toLocaleString('id-ID') : '—'
+        }));
+        setEmailLogs(mapped);
+      } else {
+        setEmailLogs([]);
+      }
+    }
+    loadLogs();
+  }, []);
+
+  const sentCount = emailLogs.filter(l => l.status !== 'Failed').length;
+  const failedCount = emailLogs.filter(l => l.status === 'Failed').length;
 
   const stats = [
-    { label: 'Email terkirim', value: '1,284', sub: '98.4% delivery' },
-    { label: 'Open-rate', value: '72.8%', sub: '+4.2% bulan ini' },
-    { label: 'Dalam antrean', value: '18', sub: 'Attempt-1' },
-    { label: 'Gagal', value: '3', sub: 'Perlu ditinjau' }
+    { label: 'Email terkirim', value: String(sentCount), sub: 'Tercatat di database' },
+    { label: 'Total log', value: String(emailLogs.length), sub: 'Semua notifikasi' },
+    { label: 'Dalam antrean', value: '0', sub: 'Attempt-1' },
+    { label: 'Gagal', value: String(failedCount), sub: 'Perlu ditinjau' }
   ];
 
   const filtered = activeTab === 'Semua' ? emailLogs
@@ -27,7 +46,7 @@ export default function KetuaLogNotifikasi() {
         <div>
           <span style={{ fontSize: '12px', fontWeight: 700, color: '#4F46E5', letterSpacing: '0.06em', textTransform: 'uppercase' }}>EMAIL_LOGS</span>
           <h1 className="page-title">Log Notifikasi & Open-Rate</h1>
-          <p className="page-subtitle">Pantau antrean SMTP, delivery status, dan engagement email.</p>
+          <p className="page-subtitle">Pantau antrean SMTP, delivery status, dan riwayat email dari database.</p>
         </div>
         <div style={{ display: 'flex', gap: '6px' }}>
           {['Semua', 'Attempt-1', 'Failed'].map(tab => (
@@ -69,23 +88,31 @@ export default function KetuaLogNotifikasi() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
-              {['SUBJEK', 'PENERIMA', 'STATUS', 'ATTEMPT', 'OPEN-RATE'].map(h => (
+              {['SUBJEK', 'PENERIMA', 'STATUS', 'ATTEMPT', 'WAKTU KIRIM'].map(h => (
                 <th key={h} style={{ padding: '12px 20px', textAlign: 'left', fontSize: '11px', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.05em' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {filtered.map(log => (
-              <tr key={log.id} style={{ borderBottom: '1px solid #F8FAFC' }}>
-                <td style={{ padding: '16px 20px', fontSize: '14px', fontWeight: 500, color: '#0F172A' }}>{log.subjek}</td>
-                <td style={{ padding: '16px 20px', fontSize: '13.5px', color: '#64748B' }}>{log.penerima}</td>
-                <td style={{ padding: '16px 20px' }}>
-                  <span style={{ color: log.statusColor, fontWeight: 700, fontSize: '13.5px' }}>{log.status}</span>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={5} style={{ padding: '32px 20px', textAlign: 'center', color: '#94A3B8', fontSize: '13.5px' }}>
+                  Belum ada riwayat pengiriman email notifikasi.
                 </td>
-                <td style={{ padding: '16px 20px', fontSize: '13.5px', color: '#64748B' }}>{log.attempt}</td>
-                <td style={{ padding: '16px 20px', fontSize: '13.5px', color: '#64748B' }}>{log.openRate}</td>
               </tr>
-            ))}
+            ) : (
+              filtered.map(log => (
+                <tr key={log.id} style={{ borderBottom: '1px solid #F8FAFC' }}>
+                  <td style={{ padding: '16px 20px', fontSize: '14px', fontWeight: 500, color: '#0F172A' }}>{log.subjek}</td>
+                  <td style={{ padding: '16px 20px', fontSize: '13.5px', color: '#64748B' }}>{log.penerima}</td>
+                  <td style={{ padding: '16px 20px' }}>
+                    <span style={{ color: log.statusColor, fontWeight: 700, fontSize: '13.5px' }}>{log.status}</span>
+                  </td>
+                  <td style={{ padding: '16px 20px', fontSize: '13.5px', color: '#64748B' }}>{log.attempt}</td>
+                  <td style={{ padding: '16px 20px', fontSize: '13.5px', color: '#64748B' }}>{log.openRate}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

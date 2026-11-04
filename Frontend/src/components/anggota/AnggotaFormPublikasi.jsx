@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   ChevronLeft, 
-  UploadCloud, 
   ShieldCheck, 
-  CheckCircle2, 
-  FileText, 
-  Image as ImageIcon 
+  FileText,
+  Image as ImageIcon
 } from 'lucide-react';
+import { interUkmApi } from '../../services/api.js';
 
 export default function AnggotaFormPublikasi({ onBack, onSubmitSuccess, showToast }) {
   const [formData, setFormData] = useState({
@@ -14,17 +13,41 @@ export default function AnggotaFormPublikasi({ onBack, onSubmitSuccess, showToas
     kategori: 'Kolaborasi',
     target: 'Seluruh UKM Kampus',
     deskripsi: '',
-    tanggal: '24–26 November 2024',
+    tanggal: '',
     lokasi: 'Student Center Kampus',
-    pic: 'Ardi Pratama',
+    pic: '',
     whatsapp: '+62 812 3456 7890',
-    proposalFile: 'Proposal_Campus_Collaboration.pdf',
-    fotoFile: 'Banner_Preview.png',
+    proposalFile: '',
+    fotoFile: '',
     isAgreed: false
   });
+  const [proposalFileObj, setProposalFileObj] = useState(null);
+  const [fotoFileObj, setFotoFileObj] = useState(null);
+  const [fotoPreview, setFotoPreview] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (asDraft = false) => {
-    if (!formData.judul) {
+  const proposalInputRef = useRef(null);
+  const fotoInputRef = useRef(null);
+
+  const handleProposalChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setProposalFileObj(file);
+    setFormData(prev => ({ ...prev, proposalFile: `${file.name} (${(file.size / 1024).toFixed(1)} KB)` }));
+    showToast && showToast(`Berkas "${file.name}" berhasil dipilih.`, 'success');
+  };
+
+  const handleFotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFotoFileObj(file);
+    setFotoPreview(URL.createObjectURL(file));
+    setFormData(prev => ({ ...prev, fotoFile: `${file.name} (${(file.size / 1024).toFixed(1)} KB)` }));
+    showToast && showToast(`Foto "${file.name}" berhasil dipilih.`, 'success');
+  };
+
+  const handleSubmit = async (asDraft = false) => {
+    if (!formData.judul.trim()) {
       showToast('Harap masukkan Judul Publikasi.', 'warning');
       return;
     }
@@ -35,10 +58,33 @@ export default function AnggotaFormPublikasi({ onBack, onSubmitSuccess, showToas
 
     if (asDraft) {
       showToast('Draf publikasi kolaborasi berhasil disimpan.', 'info');
-    } else {
-      showToast('Publikasi kolaborasi berhasil diajukan untuk verifikasi Ketua UKM!', 'success');
+      return;
     }
-    onSubmitSuccess && onSubmitSuccess();
+
+    setSubmitting(true);
+    const isi = [
+      formData.deskripsi.trim() || `Publikasi ${formData.kategori}`,
+      formData.tanggal ? `Pelaksanaan: ${formData.tanggal}` : '',
+      formData.lokasi ? `Lokasi: ${formData.lokasi}` : '',
+      formData.pic ? `PIC: ${formData.pic} (${formData.whatsapp})` : '',
+      formData.proposalFile ? `Lampiran: ${formData.proposalFile}` : ''
+    ].filter(Boolean).join(' • ');
+
+    const res = await interUkmApi.createPost({
+      ukm_pengirim: `SIOMAS (${formData.kategori})`,
+      judul: formData.judul.trim(),
+      isi_pengumuman: isi,
+      foto: fotoFileObj || undefined,
+      proposal: proposalFileObj || undefined
+    });
+    setSubmitting(false);
+
+    if (res.ok) {
+      showToast('Publikasi kolaborasi berhasil diajukan untuk verifikasi Ketua UKM!', 'success');
+      onSubmitSuccess && onSubmitSuccess();
+    } else {
+      showToast(res.data?.message || 'Gagal mengajukan publikasi kolaborasi.', 'error');
+    }
   };
 
   return (
@@ -125,7 +171,7 @@ export default function AnggotaFormPublikasi({ onBack, onSubmitSuccess, showToas
               <div className="portal-form-group">
                 <label className="portal-form-label">Tanggal Pelaksanaan</label>
                 <input 
-                  type="text"
+                  type="date"
                   className="portal-input"
                   value={formData.tanggal}
                   onChange={(e) => setFormData({ ...formData, tanggal: e.target.value })}
@@ -170,42 +216,78 @@ export default function AnggotaFormPublikasi({ onBack, onSubmitSuccess, showToas
             </div>
 
             {/* Lampiran Proposal */}
-            <div className="portal-dropzone">
+            <input
+              ref={proposalInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx"
+              style={{ display: 'none' }}
+              onChange={handleProposalChange}
+            />
+            <div
+              className="portal-dropzone"
+              style={{ cursor: 'pointer' }}
+              onClick={() => proposalInputRef.current?.click()}
+            >
               <div className="dropzone-left">
                 <div className="dropzone-icon">
                   <FileText size={20} />
                 </div>
                 <div className="dropzone-text">
                   <h5>Lampirkan proposal kolaborasi</h5>
-                  <p>{formData.proposalFile}</p>
+                  <p style={{ color: formData.proposalFile ? '#4F46E5' : undefined, fontWeight: formData.proposalFile ? 600 : undefined }}>
+                    {formData.proposalFile || 'PDF atau DOCX • Maksimal 10 MB'}
+                  </p>
                 </div>
               </div>
               <button 
                 type="button" 
                 className="portal-outline-btn"
                 style={{ width: 'auto', padding: '6px 14px', fontSize: '12px' }}
-                onClick={() => showToast('Berkas proposal dipilih.', 'success')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  proposalInputRef.current?.click();
+                }}
               >
                 Pilih Berkas
               </button>
             </div>
 
             {/* Lampiran Foto Kegiatan */}
-            <div className="portal-dropzone">
+            <input
+              ref={fotoInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleFotoChange}
+            />
+            <div
+              className="portal-dropzone"
+              style={{ cursor: 'pointer' }}
+              onClick={() => fotoInputRef.current?.click()}
+            >
               <div className="dropzone-left">
-                <div className="dropzone-icon" style={{ background: '#ECFDF5', color: '#10B981' }}>
-                  <ImageIcon size={20} />
-                </div>
+                {fotoPreview ? (
+                  <img src={fotoPreview} alt="Preview" style={{ width: '48px', height: '40px', borderRadius: '8px', objectFit: 'cover' }} />
+                ) : (
+                  <div className="dropzone-icon" style={{ background: '#ECFDF5', color: '#10B981' }}>
+                    <ImageIcon size={20} />
+                  </div>
+                )}
                 <div className="dropzone-text">
                   <h5>Lampirkan foto kegiatan</h5>
-                  <p>{formData.fotoFile}</p>
+                  <p style={{ color: formData.fotoFile ? '#10B981' : undefined, fontWeight: formData.fotoFile ? 600 : undefined }}>
+                    {formData.fotoFile || 'JPG atau PNG • Maksimal 5 MB'}
+                  </p>
                 </div>
               </div>
               <button 
                 type="button" 
                 className="portal-outline-btn"
                 style={{ width: 'auto', padding: '6px 14px', fontSize: '12px' }}
-                onClick={() => showToast('Foto sampul dipilih.', 'success')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fotoInputRef.current?.click();
+                }}
               >
                 Pilih Foto
               </button>
@@ -240,10 +322,11 @@ export default function AnggotaFormPublikasi({ onBack, onSubmitSuccess, showToas
               </button>
               <button 
                 type="button" 
+                disabled={submitting}
                 className="btn-primary-glow"
                 onClick={() => handleSubmit(false)}
               >
-                Ajukan Persetujuan
+                {submitting ? 'Mengirim...' : 'Ajukan Persetujuan'}
               </button>
             </div>
           </div>
