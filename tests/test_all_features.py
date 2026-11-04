@@ -21,12 +21,15 @@ class SiomasApiTestCase(unittest.TestCase):
         cls.ctx = cls.app.app_context()
         cls.ctx.push()
 
-        # Seed or ensure users exist for test: Admin, Pengurus, Anggota
+        # Seed or ensure users exist for test: Ketua, Pengurus, Anggota
         admin = User.query.filter_by(Email='admin@siomas.com').first()
         if not admin:
-            admin = User(Nama='Admin Test', Email='admin@siomas.com', Role='Admin', Status_Keanggotaan='Aktif')
+            admin = User(Nama='Ketua Test', Email='admin@siomas.com', Role='Ketua', Status_Keanggotaan='Aktif')
             admin.set_password('admin123')
             db.session.add(admin)
+            db.session.commit()
+        else:
+            admin.Role = 'Ketua'
             db.session.commit()
 
         # Pengurus user
@@ -78,11 +81,11 @@ class SiomasApiTestCase(unittest.TestCase):
         self.assertEqual(res_spec.status_code, 200)
 
     def test_02_uc01_profile_and_jobdesk(self):
-        # Admin profile
+        # Ketua profile
         res = self.client.get('/api/v1/profile/me', headers=self.admin_headers)
         self.assertEqual(res.status_code, 200)
         data = res.get_json()['data']
-        self.assertEqual(data['role'], 'Admin')
+        self.assertEqual(data['role'], 'Ketua')
         self.assertIn('buat_pengumuman', data['permissions'])
 
         # Update profile

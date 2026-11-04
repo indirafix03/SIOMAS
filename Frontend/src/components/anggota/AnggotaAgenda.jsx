@@ -1,89 +1,122 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Clock, MapPin, Tag, Users, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, MapPin, Users, X } from 'lucide-react';
+
+const MONTHS = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+];
+
+const INITIAL_EVENTS = [
+  {
+    id: 1,
+    day: 7,
+    month: 10, // November (0-indexed)
+    year: 2024,
+    title: 'Rapat Divisi',
+    category: 'Internal Divisi',
+    chipClass: 'event-chip-blue',
+    time: '14:00 - 16:00 WITA',
+    location: 'Ruang Rapat 2',
+    division: 'Divisi Humas & Publikasi',
+    desc: 'Koordinasi mingguan progres publikasi media sosial dan evaluasi konten berkala.'
+  },
+  {
+    id: 2,
+    day: 14,
+    month: 10,
+    year: 2024,
+    title: 'Workshop',
+    category: 'Pengembangan Skill',
+    chipClass: 'event-chip-green',
+    time: '09:00 - 12:30 WITA',
+    location: 'Aula Gedung C',
+    division: 'Divisi PSDM',
+    desc: 'Pelatihan kepemimpinan dan manajemen organisasi bagi seluruh anggota baru.'
+  },
+  {
+    id: 3,
+    day: 18,
+    month: 10,
+    year: 2024,
+    title: 'SIOMAS Fest',
+    category: 'Program Kerja Utama',
+    chipClass: 'event-chip-yellow',
+    time: '08:00 - 18:00 WITA',
+    location: 'Lapangan Utama Kampus',
+    division: 'Seluruh Divisi',
+    desc: 'Festival tahunan organisasi mahasiswa yang menampilkan expo karya, seni, dan kolaborasi UKM.'
+  },
+  {
+    id: 4,
+    day: 22,
+    month: 10,
+    year: 2024,
+    title: 'Rapat Koordinasi Akhir',
+    category: 'Manajemen',
+    chipClass: 'event-chip-purple',
+    time: '15:30 - 17:30 WITA',
+    location: 'Aula Gedung C',
+    division: 'Pengurus Harian & Anggota',
+    desc: 'Evaluasi pencapaian target dan program kerja semester ganjil.'
+  }
+];
 
 export default function AnggotaAgenda() {
+  const [currentMonth, setCurrentMonth] = useState(10); // November (0-indexed)
+  const [currentYear, setCurrentYear] = useState(2024);
   const [viewMode, setViewMode] = useState('Bulan');
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [events] = useState(INITIAL_EVENTS);
 
-  const events = {
-    7: {
-      title: 'Rapat Divisi',
-      category: 'Internal Divisi',
-      chipClass: 'event-chip-blue',
-      time: '14:00 - 16:00 WITA',
-      location: 'Ruang Rapat 2',
-      division: 'Divisi Humas & Publikasi',
-      desc: 'Koordinasi mingguan progres publikasi media sosial dan evaluasi konten berkala.'
-    },
-    14: {
-      title: 'Workshop',
-      category: 'Pengembangan Skill',
-      chipClass: 'event-chip-green',
-      time: '09:00 - 12:30 WITA',
-      location: 'Aula Gedung C',
-      division: 'Divisi PSDM',
-      desc: 'Pelatihan kepemimpinan dan manajemen organisasi bagi seluruh anggota baru.'
-    },
-    18: {
-      title: 'SIOMAS Fest',
-      category: 'Program Kerja Utama',
-      chipClass: 'event-chip-yellow',
-      time: '08:00 - 18:00 WITA',
-      location: 'Lapangan Utama Kampus',
-      division: 'Seluruh Divisi',
-      desc: 'Festival tahunan organisasi mahasiswa yang menampilkan expo karya, seni, dan kolaborasi UKM.'
-    },
-    22: {
-      title: 'Rapat Koordinasi Akhir',
-      category: 'Manajemen',
-      chipClass: 'event-chip-purple',
-      time: '15:30 - 17:30 WITA',
-      location: 'Aula Gedung C',
-      division: 'Pengurus Harian & Anggota',
-      desc: 'Evaluasi pencapaian target dan program kerja semester ganjil.'
+  const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
+  const getFirstDayOfMonth = (year, month) => {
+    const day = new Date(year, month, 1).getDay();
+    return day === 0 ? 6 : day - 1; // 0 = Senin, 6 = Minggu
+  };
+
+  const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+  const firstDay = getFirstDayOfMonth(currentYear, currentMonth);
+  const prevMonthDays = getDaysInMonth(currentYear, currentMonth - 1);
+
+  const handlePrevMonth = () => {
+    if (currentMonth === 0) {
+      setCurrentMonth(11);
+      setCurrentYear(currentYear - 1);
+    } else {
+      setCurrentMonth(currentMonth - 1);
     }
   };
 
-  // 35 days in 5 weeks (Sen to Min)
-  // Matching November 2024 calendar:
-  // Nov 1 was Friday. Days before: 28, 29, 30, 31 (October)
-  const calendarDays = [
-    { day: 28, isCurrentMonth: false },
-    { day: 29, isCurrentMonth: false },
-    { day: 30, isCurrentMonth: false },
-    { day: 31, isCurrentMonth: false },
-    { day: 1, isCurrentMonth: true },
-    { day: 2, isCurrentMonth: true },
-    { day: 3, isCurrentMonth: true },
-    { day: 4, isCurrentMonth: true },
-    { day: 5, isCurrentMonth: true },
-    { day: 6, isCurrentMonth: true },
-    { day: 7, isCurrentMonth: true, event: events[7] },
-    { day: 8, isCurrentMonth: true },
-    { day: 9, isCurrentMonth: true },
-    { day: 10, isCurrentMonth: true },
-    { day: 11, isCurrentMonth: true },
-    { day: 12, isCurrentMonth: true },
-    { day: 13, isCurrentMonth: true },
-    { day: 14, isCurrentMonth: true, event: events[14] },
-    { day: 15, isCurrentMonth: true },
-    { day: 16, isCurrentMonth: true },
-    { day: 17, isCurrentMonth: true },
-    { day: 18, isCurrentMonth: true, event: events[18] },
-    { day: 19, isCurrentMonth: true },
-    { day: 20, isCurrentMonth: true },
-    { day: 21, isCurrentMonth: true },
-    { day: 22, isCurrentMonth: true, event: events[22] },
-    { day: 23, isCurrentMonth: true },
-    { day: 24, isCurrentMonth: true },
-    { day: 25, isCurrentMonth: true },
-    { day: 26, isCurrentMonth: true },
-    { day: 27, isCurrentMonth: true },
-    { day: 28, isCurrentMonth: true },
-    { day: 29, isCurrentMonth: true },
-    { day: 30, isCurrentMonth: true },
-    { day: 31, isCurrentMonth: true }
-  ];
+  const handleNextMonth = () => {
+    if (currentMonth === 11) {
+      setCurrentMonth(0);
+      setCurrentYear(currentYear + 1);
+    } else {
+      setCurrentMonth(currentMonth + 1);
+    }
+  };
+
+  // Build calendar days array
+  const calendarDays = [];
+  // Days from previous month
+  for (let i = firstDay - 1; i >= 0; i--) {
+    calendarDays.push({ day: prevMonthDays - i, isCurrentMonth: false, events: [] });
+  }
+  // Days in current month
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dayEvents = events.filter(
+      (e) => e.year === currentYear && e.month === currentMonth && e.day === d
+    );
+    calendarDays.push({ day: d, isCurrentMonth: true, events: dayEvents });
+  }
+  // Days from next month to fill weeks
+  const totalSlots = Math.ceil(calendarDays.length / 7) * 7;
+  const remaining = (totalSlots < 35 ? 35 : totalSlots) - calendarDays.length;
+  for (let d = 1; d <= remaining; d++) {
+    calendarDays.push({ day: d, isCurrentMonth: false, events: [] });
+  }
+
+  const numWeeks = Math.ceil(calendarDays.length / 7);
 
   return (
     <div>
@@ -97,11 +130,11 @@ export default function AnggotaAgenda() {
       {/* Top Controls */}
       <div className="calendar-top-controls">
         <div className="calendar-month-selector">
-          <button type="button" className="icon-arrow-btn" title="Bulan Sebelumnya">
+          <button type="button" className="icon-arrow-btn" title="Bulan Sebelumnya" onClick={handlePrevMonth}>
             <ChevronLeft size={16} />
           </button>
-          <h3>November 2024</h3>
-          <button type="button" className="icon-arrow-btn" title="Bulan Selanjutnya">
+          <h3>{MONTHS[currentMonth]} {currentYear}</h3>
+          <button type="button" className="icon-arrow-btn" title="Bulan Selanjutnya" onClick={handleNextMonth}>
             <ChevronRight size={16} />
           </button>
         </div>
@@ -111,6 +144,7 @@ export default function AnggotaAgenda() {
             type="button" 
             className="portal-outline-btn" 
             style={{ width: 'auto', padding: '6px 14px', fontSize: '12.5px' }}
+            onClick={() => { setCurrentMonth(10); setCurrentYear(2024); }}
           >
             Hari ini
           </button>
@@ -149,7 +183,7 @@ export default function AnggotaAgenda() {
             </tr>
           </thead>
           <tbody>
-            {[0, 1, 2, 3, 4].map((weekIdx) => (
+            {Array.from({ length: numWeeks }).map((_, weekIdx) => (
               <tr key={weekIdx}>
                 {calendarDays.slice(weekIdx * 7, (weekIdx + 1) * 7).map((item, dIdx) => (
                   <td key={dIdx}>
@@ -157,15 +191,16 @@ export default function AnggotaAgenda() {
                       {item.day}
                     </div>
 
-                    {item.event && (
+                    {item.events && item.events.map((evt, eIdx) => (
                       <span 
-                        className={`calendar-event-chip ${item.event.chipClass}`}
-                        onClick={() => setSelectedEvent(item.event)}
+                        key={eIdx}
+                        className={`calendar-event-chip ${evt.chipClass || 'event-chip-blue'}`}
+                        onClick={() => setSelectedEvent(evt)}
                         title="Klik untuk detail"
                       >
-                        {item.event.title}
+                        {evt.title}
                       </span>
-                    )}
+                    ))}
                   </td>
                 ))}
               </tr>

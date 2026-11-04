@@ -124,7 +124,7 @@ def get_jobdesk_list():
       - in: query
         name: role
         type: string
-        enum: [Admin, Pengurus, Anggota]
+        enum: [Ketua, Pengurus, Anggota]
         description: Filter berdasarkan role
     responses:
       200:
@@ -136,8 +136,8 @@ def get_jobdesk_list():
     if role_filter:
         query = query.filter(User.Role == role_filter)
     else:
-        # Default prioritize Pengurus and Admin
-        query = query.filter(User.Role.in_(['Admin', 'Pengurus']))
+        # Default prioritize Pengurus and Ketua
+        query = query.filter(User.Role.in_(['Ketua', 'Pengurus']))
 
     members = query.order_by(User.Role.asc(), User.Nama.asc()).all()
 

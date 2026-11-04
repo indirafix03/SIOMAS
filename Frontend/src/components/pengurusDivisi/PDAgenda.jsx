@@ -1,35 +1,118 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, MapPin, Plus, Users, X } from 'lucide-react';
 
-const DAYS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
-const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+const MONTHS = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+];
 
-const EVENT_COLORS = {
-  'Rapat': { bg: '#EEF2FF', color: '#6366F1', dot: '#6366F1' },
-  'Workshop': { bg: '#DCFCE7', color: '#10B981', dot: '#10B981' },
-  'Acara': { bg: '#FEF9C3', color: '#CA8A04', dot: '#CA8A04' },
-  'Lainnya': { bg: '#F1F5F9', color: '#64748B', dot: '#94A3B8' }
-};
+const INITIAL_EVENTS = [
+  {
+    id: 1,
+    day: 7,
+    month: 10, // November (0-indexed)
+    year: 2024,
+    title: 'Rapat Divisi',
+    category: 'Internal Divisi',
+    chipClass: 'event-chip-blue',
+    time: '14:00 - 16:00 WITA',
+    location: 'Ruang Rapat 2',
+    division: 'Divisi Humas & Publikasi',
+    desc: 'Koordinasi mingguan progres publikasi media sosial dan evaluasi konten berkala.'
+  },
+  {
+    id: 2,
+    day: 14,
+    month: 10,
+    year: 2024,
+    title: 'Workshop',
+    category: 'Pengembangan Skill',
+    chipClass: 'event-chip-green',
+    time: '09:00 - 12:30 WITA',
+    location: 'Aula Gedung C',
+    division: 'Divisi PSDM',
+    desc: 'Pelatihan kepemimpinan dan manajemen organisasi bagi seluruh anggota baru.'
+  },
+  {
+    id: 3,
+    day: 18,
+    month: 10,
+    year: 2024,
+    title: 'SIOMAS Fest',
+    category: 'Program Kerja Utama',
+    chipClass: 'event-chip-yellow',
+    time: '08:00 - 18:00 WITA',
+    location: 'Lapangan Utama Kampus',
+    division: 'Seluruh Divisi',
+    desc: 'Festival tahunan organisasi mahasiswa yang menampilkan expo karya, seni, dan kolaborasi UKM.'
+  },
+  {
+    id: 4,
+    day: 22,
+    month: 10,
+    year: 2024,
+    title: 'Rapat Koordinasi Akhir',
+    category: 'Manajemen',
+    chipClass: 'event-chip-purple',
+    time: '15:30 - 17:30 WITA',
+    location: 'Aula Gedung C',
+    division: 'Pengurus Harian & Anggota',
+    desc: 'Evaluasi pencapaian target dan program kerja semester ganjil.'
+  }
+];
 
 function ModalTambahAgenda({ onClose, onSave, showToast }) {
   const [form, setForm] = useState({
     judul: '',
-    tanggal: '',
-    waktuMulai: '',
-    waktuSelesai: '',
+    tanggal: '2024-11-20',
+    waktuMulai: '14:00',
+    waktuSelesai: '16:00',
     lokasi: '',
     tipe: 'Rapat',
+    divisi: 'Divisi Pengurus',
     deskripsi: ''
   });
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.judul.trim() || !form.tanggal) {
-      showToast('Harap isi Judul dan Tanggal Agenda.', 'warning');
+      if (showToast) showToast('Harap isi Judul dan Tanggal Agenda.', 'warning');
       return;
     }
-    onSave(form);
-    showToast(`Agenda "${form.judul}" berhasil ditambahkan.`, 'success');
+
+    const typeChipMap = {
+      'Rapat': { chip: 'event-chip-blue', cat: 'Internal Divisi' },
+      'Workshop': { chip: 'event-chip-green', cat: 'Pengembangan Skill' },
+      'Acara': { chip: 'event-chip-yellow', cat: 'Program Kerja Utama' },
+      'Lainnya': { chip: 'event-chip-purple', cat: 'Manajemen' }
+    };
+
+    const mapping = typeChipMap[form.tipe] || typeChipMap['Rapat'];
+    const parts = form.tanggal.split('-');
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+
+    const timeStr = form.waktuMulai && form.waktuSelesai 
+      ? `${form.waktuMulai} - ${form.waktuSelesai} WITA`
+      : 'WITA';
+
+    const newEvt = {
+      id: Date.now(),
+      day,
+      month,
+      year,
+      title: form.judul,
+      category: mapping.cat,
+      chipClass: mapping.chip,
+      time: timeStr,
+      location: form.lokasi || 'Ruang Rapat UKM',
+      division: form.divisi || 'Pengurus Divisi',
+      desc: form.deskripsi || 'Kegiatan agenda divisi.'
+    };
+
+    onSave(newEvt);
+    if (showToast) showToast(`Agenda "${form.judul}" berhasil ditambahkan.`, 'success');
     onClose();
   };
 
@@ -74,7 +157,11 @@ function ModalTambahAgenda({ onClose, onSave, showToast }) {
             </div>
             <div className="portal-form-group">
               <label className="portal-form-label">Lokasi</label>
-              <input className="portal-input" placeholder="Contoh: Ruang Sekretariat" value={form.lokasi} onChange={(e) => setForm({ ...form, lokasi: e.target.value })} />
+              <input className="portal-input" placeholder="Contoh: Ruang Rapat 2 / Aula" value={form.lokasi} onChange={(e) => setForm({ ...form, lokasi: e.target.value })} />
+            </div>
+            <div className="portal-form-group">
+              <label className="portal-form-label">Divisi Penanggung Jawab</label>
+              <input className="portal-input" placeholder="Contoh: Divisi Acara" value={form.divisi} onChange={(e) => setForm({ ...form, divisi: e.target.value })} />
             </div>
             <div className="portal-form-group">
               <label className="portal-form-label">Deskripsi (opsional)</label>
@@ -95,19 +182,14 @@ export default function PDAgenda({ showToast }) {
   const [currentMonth, setCurrentMonth] = useState(10); // November (0-indexed)
   const [currentYear, setCurrentYear] = useState(2024);
   const [viewMode, setViewMode] = useState('Bulan');
+  const [selectedEvent, setSelectedEvent] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [events, setEvents] = useState(INITIAL_EVENTS);
 
-  const [events, setEvents] = useState([
-    { id: 1, date: 7, judul: 'Rapat Divisi', tipe: 'Rapat' },
-    { id: 2, date: 14, judul: 'Workshop', tipe: 'Workshop' },
-    { id: 3, date: 18, judul: 'SIOMAS Fest', tipe: 'Acara' }
-  ]);
-
-  // Get days in month
   const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
   const getFirstDayOfMonth = (year, month) => {
     const day = new Date(year, month, 1).getDay();
-    return day === 0 ? 6 : day - 1; // Adjust to Monday start
+    return day === 0 ? 6 : day - 1; // 0 = Senin, 6 = Minggu
   };
 
   const daysInMonth = getDaysInMonth(currentYear, currentMonth);
@@ -115,41 +197,52 @@ export default function PDAgenda({ showToast }) {
   const prevMonthDays = getDaysInMonth(currentYear, currentMonth - 1);
 
   const handlePrevMonth = () => {
-    if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(currentYear - 1); }
-    else setCurrentMonth(currentMonth - 1);
+    if (currentMonth === 0) {
+      setCurrentMonth(11);
+      setCurrentYear(currentYear - 1);
+    } else {
+      setCurrentMonth(currentMonth - 1);
+    }
   };
 
   const handleNextMonth = () => {
-    if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear(currentYear + 1); }
-    else setCurrentMonth(currentMonth + 1);
+    if (currentMonth === 11) {
+      setCurrentMonth(0);
+      setCurrentYear(currentYear + 1);
+    } else {
+      setCurrentMonth(currentMonth + 1);
+    }
   };
 
-  const getEventsForDay = (day) => events.filter((e) => e.date === day);
-
-  const handleSaveAgenda = (data) => {
-    const day = data.tanggal ? parseInt(data.tanggal.split('-')[2]) : 1;
-    setEvents([...events, { id: events.length + 10, date: day, judul: data.judul, tipe: data.tipe }]);
+  const handleSaveAgenda = (newEvent) => {
+    setEvents(prev => [...prev, newEvent]);
   };
 
-  // Build calendar grid
-  const calendarCells = [];
-  // Previous month days
+  // Build calendar days array
+  const calendarDays = [];
+  // Days from previous month
   for (let i = firstDay - 1; i >= 0; i--) {
-    calendarCells.push({ day: prevMonthDays - i, current: false });
+    calendarDays.push({ day: prevMonthDays - i, isCurrentMonth: false, events: [] });
   }
-  // Current month days
+  // Days in current month
   for (let d = 1; d <= daysInMonth; d++) {
-    calendarCells.push({ day: d, current: true });
+    const dayEvents = events.filter(
+      (e) => e.year === currentYear && e.month === currentMonth && e.day === d
+    );
+    calendarDays.push({ day: d, isCurrentMonth: true, events: dayEvents });
   }
-  // Next month days
-  const remaining = 42 - calendarCells.length;
+  // Days from next month to fill weeks
+  const totalSlots = Math.ceil(calendarDays.length / 7) * 7;
+  const remaining = (totalSlots < 35 ? 35 : totalSlots) - calendarDays.length;
   for (let d = 1; d <= remaining; d++) {
-    calendarCells.push({ day: d, current: false });
+    calendarDays.push({ day: d, isCurrentMonth: false, events: [] });
   }
+
+  const numWeeks = Math.ceil(calendarDays.length / 7);
 
   return (
     <div>
-      {/* Header */}
+      {/* Header with Title and Tambah Agenda Button */}
       <div className="page-header-block">
         <div className="page-title-row" style={{ alignItems: 'flex-end' }}>
           <div>
@@ -163,98 +256,155 @@ export default function PDAgenda({ showToast }) {
         </div>
       </div>
 
-      {/* Calendar Card */}
-      <div className="portal-card" style={{ padding: '28px' }}>
-        {/* Calendar Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <button type="button" className="table-action-btn" onClick={handlePrevMonth}><ChevronLeft size={18} /></button>
-            <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
-              {MONTHS[currentMonth]} {currentYear}
-            </h3>
-            <button type="button" className="table-action-btn" onClick={handleNextMonth}><ChevronRight size={18} /></button>
-          </div>
+      {/* Top Controls matching AnggotaAgenda */}
+      <div className="calendar-top-controls">
+        <div className="calendar-month-selector">
+          <button type="button" className="icon-arrow-btn" title="Bulan Sebelumnya" onClick={handlePrevMonth}>
+            <ChevronLeft size={16} />
+          </button>
+          <h3>{MONTHS[currentMonth]} {currentYear}</h3>
+          <button type="button" className="icon-arrow-btn" title="Bulan Selanjutnya" onClick={handleNextMonth}>
+            <ChevronRight size={16} />
+          </button>
+        </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className="calendar-view-toggles">
+          <button 
+            type="button" 
+            className="portal-outline-btn" 
+            style={{ width: 'auto', padding: '6px 14px', fontSize: '12.5px' }}
+            onClick={() => { setCurrentMonth(10); setCurrentYear(2024); }}
+          >
+            Hari ini
+          </button>
+
+          <div className="segmented-toggle">
             <button
               type="button"
-              className="portal-outline-btn"
-              style={{ width: 'auto', padding: '7px 14px', fontSize: '13px' }}
-              onClick={() => { setCurrentMonth(10); setCurrentYear(2024); }}
+              className={`toggle-option ${viewMode === 'Bulan' ? 'active' : ''}`}
+              onClick={() => setViewMode('Bulan')}
             >
-              Hari ini
+              Bulan
             </button>
-            <div style={{ display: 'flex', background: '#F1F5F9', borderRadius: '8px', padding: '3px' }}>
-              {['Bulan', 'Minggu'].map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setViewMode(mode)}
-                  style={{
-                    padding: '6px 16px', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-                    background: viewMode === mode ? '#fff' : 'transparent',
-                    color: viewMode === mode ? '#0F172A' : '#64748B',
-                    boxShadow: viewMode === mode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  {mode}
-                </button>
-              ))}
-            </div>
+            <button
+              type="button"
+              className={`toggle-option ${viewMode === 'Minggu' ? 'active' : ''}`}
+              onClick={() => setViewMode('Minggu')}
+            >
+              Minggu
+            </button>
           </div>
-        </div>
-
-        {/* Day Headers */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1px', marginBottom: '4px' }}>
-          {DAYS.map((d) => (
-            <div key={d} style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#94A3B8', padding: '8px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              {d}
-            </div>
-          ))}
-        </div>
-
-        {/* Calendar Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1px', background: '#E2E8F0', borderRadius: '12px', overflow: 'hidden', border: '1px solid #E2E8F0' }}>
-          {calendarCells.map((cell, idx) => {
-            const dayEvents = cell.current ? getEventsForDay(cell.day) : [];
-            const isToday = cell.current && cell.day === 14 && currentMonth === 10;
-            return (
-              <div key={idx} style={{
-                background: '#fff',
-                minHeight: '110px',
-                padding: '10px 12px',
-                opacity: cell.current ? 1 : 0.35
-              }}>
-                <div style={{
-                  width: '26px', height: '26px', borderRadius: '50%',
-                  background: isToday ? '#6366F1' : 'transparent',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '13px', fontWeight: isToday ? 700 : 400,
-                  color: isToday ? '#fff' : '#475569',
-                  marginBottom: '6px'
-                }}>
-                  {cell.day}
-                </div>
-                {dayEvents.map((evt) => {
-                  const style = EVENT_COLORS[evt.tipe] || EVENT_COLORS['Lainnya'];
-                  return (
-                    <div key={evt.id} style={{
-                      background: style.bg, color: style.color,
-                      fontSize: '11px', fontWeight: 600, padding: '3px 8px',
-                      borderRadius: '6px', marginBottom: '3px',
-                      cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-                    }}>
-                      {evt.judul}
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
         </div>
       </div>
 
+      {/* Full Calendar Grid matching AnggotaAgenda */}
+      <div style={{ background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '16px', overflowX: 'auto' }}>
+        <table className="calendar-grid-table">
+          <thead>
+            <tr>
+              <th>Sen</th>
+              <th>Sel</th>
+              <th>Rab</th>
+              <th>Kam</th>
+              <th>Jum</th>
+              <th>Sab</th>
+              <th>Min</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: numWeeks }).map((_, weekIdx) => (
+              <tr key={weekIdx}>
+                {calendarDays.slice(weekIdx * 7, (weekIdx + 1) * 7).map((item, dIdx) => (
+                  <td key={dIdx}>
+                    <div className={`calendar-cell-date ${!item.isCurrentMonth ? 'dimmed' : ''}`}>
+                      {item.day}
+                    </div>
+
+                    {item.events && item.events.map((evt, eIdx) => (
+                      <span 
+                        key={eIdx}
+                        className={`calendar-event-chip ${evt.chipClass || 'event-chip-blue'}`}
+                        onClick={() => setSelectedEvent(evt)}
+                        title="Klik untuk detail"
+                      >
+                        {evt.title}
+                      </span>
+                    ))}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Event Detail Modal matching AnggotaAgenda */}
+      {selectedEvent && (
+        <div className="portal-modal-backdrop" onClick={() => setSelectedEvent(null)}>
+          <div className="portal-modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="portal-modal-header">
+              <div>
+                <span className="tag-badge tag-purple" style={{ marginBottom: '8px', display: 'inline-block' }}>
+                  {selectedEvent.category}
+                </span>
+                <h3 className="portal-modal-title">{selectedEvent.title}</h3>
+              </div>
+              <button 
+                type="button" 
+                className="portal-modal-close-btn"
+                onClick={() => setSelectedEvent(null)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="portal-modal-body">
+              <p style={{ color: '#475569', fontSize: '13.5px', lineHeight: '1.6', margin: 0 }}>
+                {selectedEvent.desc}
+              </p>
+
+              <div className="meta-grid-tiles" style={{ margin: '8px 0 0' }}>
+                <div className="meta-tile">
+                  <Clock size={18} className="meta-tile-icon" />
+                  <div>
+                    <div className="meta-tile-label">Waktu</div>
+                    <div className="meta-tile-value">{selectedEvent.time}</div>
+                  </div>
+                </div>
+
+                <div className="meta-tile">
+                  <MapPin size={18} className="meta-tile-icon" />
+                  <div>
+                    <div className="meta-tile-label">Lokasi</div>
+                    <div className="meta-tile-value">{selectedEvent.location}</div>
+                  </div>
+                </div>
+
+                <div className="meta-tile" style={{ gridColumn: 'span 2' }}>
+                  <Users size={18} className="meta-tile-icon" />
+                  <div>
+                    <div className="meta-tile-label">Divisi Penanggung Jawab</div>
+                    <div className="meta-tile-value">{selectedEvent.division}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="portal-modal-footer">
+              <button 
+                type="button" 
+                className="btn-primary-glow"
+                style={{ padding: '8px 20px', fontSize: '13px' }}
+                onClick={() => setSelectedEvent(null)}
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Tambah Agenda */}
       {showModal && (
         <ModalTambahAgenda
           onClose={() => setShowModal(false)}

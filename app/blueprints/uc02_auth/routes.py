@@ -62,7 +62,7 @@ def login():
 
     if user.Status_Keanggotaan in ('Menunggu Verifikasi', 'Pending'):
         log_audit("LOGIN_REJECTED", "Auth", f"Login ditolak: akun sedang menunggu verifikasi ({email})", user_id=user.ID)
-        return error_response("Pendaftaran akun Anda sedang menunggu verifikasi oleh Admin", 403)
+        return error_response("Pendaftaran akun Anda sedang menunggu verifikasi oleh Ketua", 403)
 
     if user.Status_Keanggotaan != 'Aktif':
         log_audit("LOGIN_REJECTED", "Auth", f"Login ditolak: akun non-aktif ({email})", user_id=user.ID)
@@ -93,7 +93,7 @@ def register():
     tags:
       - "UC-02: Autentikasi & Manajemen Akun"
     summary: Mendaftarkan akun pengguna baru
-    description: Mendaftarkan pengguna ke sistem. Role default adalah Anggota. Admin dapat menentukan role spesifik.
+    description: Mendaftarkan pengguna ke sistem. Role default adalah Anggota. Ketua dapat menentukan role spesifik.
     parameters:
       - in: body
         name: body
@@ -116,7 +116,7 @@ def register():
               example: rahasia123
             role:
               type: string
-              enum: [Admin, Pengurus, Anggota]
+              enum: [Ketua, Pengurus, Anggota]
               example: Anggota
             job_desc:
               type: string
@@ -148,8 +148,8 @@ def register():
     if not nama or not email or not password:
         return error_response("Nama, email, dan password wajib diisi", 400)
 
-    if role not in ('Admin', 'Pengurus', 'Anggota'):
-        return error_response("Role harus salah satu dari: Admin, Pengurus, Anggota", 400)
+    if role not in ('Ketua', 'Pengurus', 'Anggota'):
+        return error_response("Role harus salah satu dari: Ketua, Pengurus, Anggota", 400)
 
     # Check if email exists
     if User.query.filter_by(Email=email).first():
@@ -186,7 +186,7 @@ def register():
 
     return success_response(
         data=new_user.to_dict(),
-        message="Registrasi berhasil. Akun Anda sedang menunggu verifikasi oleh Admin." if status_keanggotaan == 'Menunggu Verifikasi' else "Registrasi berhasil",
+        message="Registrasi berhasil. Akun Anda sedang menunggu verifikasi oleh Ketua." if status_keanggotaan == 'Menunggu Verifikasi' else "Registrasi berhasil",
         code=201
     )
 
@@ -221,21 +221,21 @@ def refresh_token():
 
 
 @auth_bp.route('/users', methods=['GET'])
-@role_required('Admin', 'Pengurus')
+@role_required('Ketua', 'Pengurus')
 def list_users():
     """
     Daftar Seluruh Pengguna
     ---
     tags:
       - "UC-02: Autentikasi & Manajemen Akun"
-    summary: Mendapatkan daftar akun pengguna (Admin & Pengurus)
+    summary: Mendapatkan daftar akun pengguna (Ketua & Pengurus)
     security:
       - BearerAuth: []
     parameters:
       - in: query
         name: role
         type: string
-        enum: [Admin, Pengurus, Anggota]
+        enum: [Ketua, Pengurus, Anggota]
       - in: query
         name: status
         type: string
@@ -298,10 +298,10 @@ def get_user_detail(user_id):
 
 
 @auth_bp.route('/users/<int:user_id>', methods=['PUT'])
-@role_required('Admin')
+@role_required('Ketua')
 def update_user(user_id):
     """
-    Update Akun Pengguna (Admin Only)
+    Update Akun Pengguna (Ketua Only)
     ---
     tags:
       - "UC-02: Autentikasi & Manajemen Akun"
@@ -324,7 +324,7 @@ def update_user(user_id):
               type: string
             role:
               type: string
-              enum: [Admin, Pengurus, Anggota]
+              enum: [Ketua, Pengurus, Anggota]
             job_desc:
               type: string
             status_keanggotaan:
@@ -356,7 +356,7 @@ def update_user(user_id):
             if existing:
                 return error_response("Email sudah digunakan oleh akun lain", 400)
             user.Email = new_email
-    if 'role' in data and data['role'] in ('Admin', 'Pengurus', 'Anggota'):
+    if 'role' in data and data['role'] in ('Ketua', 'Pengurus', 'Anggota'):
         user.Role = data['role']
     if 'job_desc' in data:
         user.Job_Desc = data['job_desc'].strip() if data['job_desc'] else None
@@ -368,7 +368,7 @@ def update_user(user_id):
     user.Updated_By = current_user.ID if current_user else None
     db.session.commit()
 
-    log_audit("UPDATE_USER", "User Management", f"Admin memperbarui akun: {user.Email} (ID: {user.ID})")
+    log_audit("UPDATE_USER", "User Management", f"Ketua memperbarui akun: {user.Email} (ID: {user.ID})")
 
     return success_response(
         data=user.to_dict(),
@@ -377,10 +377,10 @@ def update_user(user_id):
 
 
 @auth_bp.route('/users/<int:user_id>', methods=['DELETE'])
-@role_required('Admin')
+@role_required('Ketua')
 def delete_user(user_id):
     """
-    Hapus Pengguna (Admin Only)
+    Hapus Pengguna (Ketua Only)
     ---
     tags:
       - "UC-02: Autentikasi & Manajemen Akun"
@@ -412,16 +412,16 @@ def delete_user(user_id):
     db.session.delete(user)
     db.session.commit()
 
-    log_audit("DELETE_USER", "User Management", f"Admin menghapus pengguna: {email} (ID: {user_id})")
+    log_audit("DELETE_USER", "User Management", f"Ketua menghapus pengguna: {email} (ID: {user_id})")
 
     return success_response(message=f"Pengguna {email} berhasil dihapus")
 
 
 @auth_bp.route('/users/<int:user_id>/verify', methods=['PATCH'])
-@role_required('Admin')
+@role_required('Ketua')
 def verify_user(user_id):
     """
-    Verifikasi & Aktifkan Akun Anggota (Admin Only) - FRAME-17 & TC-02
+    Verifikasi & Aktifkan Akun Anggota (Ketua Only) - FRAME-17 & TC-02
     ---
     tags:
       - "UC-02: Autentikasi & Manajemen Akun"
@@ -448,7 +448,7 @@ def verify_user(user_id):
     user.Updated_By = current_user.ID if current_user else None
     db.session.commit()
 
-    log_audit("VERIFY_USER", "Auth", f"Admin memverifikasi dan mengaktifkan akun: {user.Email} (ID: {user.ID})", user_id=user.ID)
+    log_audit("VERIFY_USER", "Auth", f"Ketua memverifikasi dan mengaktifkan akun: {user.Email} (ID: {user.ID})", user_id=user.ID)
 
     return success_response(
         data=user.to_dict(),

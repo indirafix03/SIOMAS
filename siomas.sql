@@ -135,7 +135,7 @@ INSERT INTO `permissions` (`ID`, `Nama_Akses`, `Deskripsi`) VALUES
 
 CREATE TABLE `role_permissions` (
   `ID` int(11) NOT NULL,
-  `Role_Name` enum('Admin','Pengurus','Anggota') NOT NULL,
+  `Role_Name` enum('Ketua','Pengurus','Anggota') NOT NULL,
   `Permission_ID` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -144,15 +144,15 @@ CREATE TABLE `role_permissions` (
 --
 
 INSERT INTO `role_permissions` (`ID`, `Role_Name`, `Permission_ID`) VALUES
-(1, 'Admin', 1),
-(2, 'Admin', 2),
-(3, 'Admin', 3),
-(4, 'Admin', 4),
-(5, 'Admin', 5),
-(6, 'Admin', 6),
-(7, 'Admin', 7),
-(8, 'Admin', 8),
-(9, 'Admin', 9),
+(1, 'Ketua', 1),
+(2, 'Ketua', 2),
+(3, 'Ketua', 3),
+(4, 'Ketua', 4),
+(5, 'Ketua', 5),
+(6, 'Ketua', 6),
+(7, 'Ketua', 7),
+(8, 'Ketua', 8),
+(9, 'Ketua', 9),
 (10, 'Pengurus', 1),
 (11, 'Pengurus', 3),
 (12, 'Pengurus', 5),
@@ -190,7 +190,7 @@ CREATE TABLE `users` (
   `Nama` varchar(255) NOT NULL,
   `Email` varchar(255) NOT NULL,
   `Password_Hash` varchar(255) NOT NULL,
-  `Role` enum('Admin','Pengurus','Anggota') NOT NULL,
+  `Role` enum('Ketua','Pengurus','Anggota') NOT NULL,
   `Job_Desc` varchar(255) DEFAULT NULL,
   `Status_Keanggotaan` enum('Aktif','Alumni') NOT NULL,
   `Created_At` datetime DEFAULT current_timestamp(),

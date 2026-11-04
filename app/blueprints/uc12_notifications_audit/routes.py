@@ -41,7 +41,7 @@ def trigger_email_notification():
               default: all
             target_role:
               type: string
-              enum: [Admin, Pengurus, Anggota]
+              enum: [Ketua, Pengurus, Anggota]
             user_ids:
               type: array
               items:
@@ -163,14 +163,14 @@ def list_email_logs():
 
 
 @notifications_audit_bp.route('/audit-logs', methods=['GET'])
-@role_required('Admin')
+@role_required('Ketua')
 def list_audit_logs():
     """
     Daftar Audit Log Sistem
     ---
     tags:
       - "UC-12: Notifikasi Email SMTP & Audit Log"
-    summary: Mengambil rekam jejak aktivitas, IP address, user agent, dan modul sistem (Admin Only)
+    summary: Mengambil rekam jejak aktivitas, IP address, user agent, dan modul sistem (Ketua Only)
     security:
       - BearerAuth: []
     parameters:

@@ -29,15 +29,37 @@ import PDDetailKolaborasi from "./components/pengurusDivisi/PDDetailKolaborasi.j
 import PDDelegasi from "./components/pengurusDivisi/PDDelegasi.jsx";
 import PDProfile from "./components/pengurusDivisi/PDProfile.jsx";
 
+// Ketua Portal Components
+import KetuaLayout from "./components/ketua/KetuaLayout.jsx";
+import KetuaBeranda from "./components/ketua/KetuaBeranda.jsx";
+import KetuaDashboardEksekutif from "./components/ketua/KetuaDashboardEksekutif.jsx";
+import KetuaKalenderAgenda from "./components/ketua/KetuaKalenderAgenda.jsx";
+import KetuaVaultLPJ from "./components/ketua/KetuaVaultLPJ.jsx";
+import KetuaValidasiLPJ from "./components/ketua/KetuaValidasiLPJ.jsx";
+import KetuaVerifikasiSipakamase from "./components/ketua/KetuaVerifikasiSipakamase.jsx";
+import KetuaHubInterUKM from "./components/ketua/KetuaHubInterUKM.jsx";
+import KetuaDetailKolaborasi from "./components/ketua/KetuaDetailKolaborasi.jsx";
+import KetuaFormPublikasi from "./components/ketua/KetuaFormPublikasi.jsx";
+import KetuaManajemenAkses from "./components/ketua/KetuaManajemenAkses.jsx";
+import KetuaLogNotifikasi from "./components/ketua/KetuaLogNotifikasi.jsx";
+import KetuaAuditLog from "./components/ketua/KetuaAuditLog.jsx";
+
 // ---------- Role helpers ----------
-// Tambahkan nilai role lain di sini kalau backend mengirim nama yang berbeda.
+const isKetuaRole = (role) =>
+  ["ketua", "ketua ukm", "ketua_ukm", "admin"].includes(
+    String(role || "").toLowerCase(),
+  );
+
 const isPengurusRole = (role) =>
   ["pengurus", "pengurus divisi", "pengurus_divisi"].includes(
     String(role || "").toLowerCase(),
   );
 
-const homeViewFor = (user) =>
-  isPengurusRole(user?.role) ? "pd-dashboard" : "dashboard";
+const homeViewFor = (user) => {
+  if (isKetuaRole(user?.role)) return "k-beranda";
+  if (isPengurusRole(user?.role)) return "pd-dashboard";
+  return "dashboard";
+};
 
 export default function App() {
   const portalViews = [
@@ -64,6 +86,23 @@ export default function App() {
     "pd-detail-pengumuman",
   ];
 
+  const ketuaViews = [
+    "k-beranda",
+    "k-dashboard-eksekutif",
+    "k-kalender-agenda",
+    "k-vault-lpj",
+    "k-validasi-lpj",
+    "k-verifikasi-sipakamase",
+    "k-hub-inter-ukm",
+    "k-detail-kolaborasi",
+    "k-form-publikasi",
+    "k-manajemen-akses",
+    "k-log-notifikasi",
+    "k-audit-log",
+    "k-profil",
+    "k-detail-pengumuman",
+  ];
+
   const [currentView, setCurrentView] = useState(() => {
     const hash = window.location.hash.replace("#/", "");
     if (
@@ -74,6 +113,7 @@ export default function App() {
         "unauthorized",
         ...portalViews,
         ...pdViews,
+        ...ketuaViews,
       ].includes(hash)
     ) {
       return hash;
@@ -151,6 +191,7 @@ export default function App() {
           "unauthorized",
           ...portalViews,
           ...pdViews,
+          ...ketuaViews,
         ].includes(hash)
       ) {
         setCurrentView(hash);
@@ -162,13 +203,16 @@ export default function App() {
   }, []);
 
   // Guard: arahkan user ke portal yang sesuai role-nya
+  const isKetua = isKetuaRole(currentUser?.role);
   const isPengurus = isPengurusRole(currentUser?.role);
 
   useEffect(() => {
     if (!currentUser) return;
-    if (isPengurus && portalViews.includes(currentView)) {
+    if (isKetua && (portalViews.includes(currentView) || pdViews.includes(currentView))) {
+      navigateTo("k-beranda");
+    } else if (isPengurus && (portalViews.includes(currentView) || ketuaViews.includes(currentView))) {
       navigateTo("pd-dashboard");
-    } else if (!isPengurus && pdViews.includes(currentView)) {
+    } else if (!isKetua && !isPengurus && (pdViews.includes(currentView) || ketuaViews.includes(currentView))) {
       navigateTo("dashboard");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -204,6 +248,7 @@ export default function App() {
 
   const isPortalView = portalViews.includes(currentView);
   const isPDView = pdViews.includes(currentView);
+  const isKetuaView = ketuaViews.includes(currentView);
 
   return (
     <>
@@ -370,6 +415,96 @@ export default function App() {
             />
           )}
         </PDLayout>
+      )}
+
+      {/* Ketua Portal Views */}
+      {isKetuaView && (
+        <KetuaLayout
+          activeView={currentView}
+          onNavigate={navigateTo}
+          currentUser={currentUser}
+          onLogout={handleLogout}
+          unreadCount={3}
+        >
+          {currentView === "k-beranda" && (
+            <KetuaBeranda
+              currentUser={currentUser}
+              onNavigate={navigateTo}
+              onSelectAnnouncement={(item) => {
+                setSelectedAnnouncement(item);
+                navigateTo("k-detail-pengumuman");
+              }}
+            />
+          )}
+
+          {currentView === "k-dashboard-eksekutif" && (
+            <KetuaDashboardEksekutif onNavigate={navigateTo} />
+          )}
+
+          {currentView === "k-kalender-agenda" && <KetuaKalenderAgenda />}
+
+          {currentView === "k-vault-lpj" && (
+            <KetuaVaultLPJ onNavigate={navigateTo} showToast={showToast} />
+          )}
+
+          {currentView === "k-validasi-lpj" && (
+            <KetuaValidasiLPJ showToast={showToast} />
+          )}
+
+          {currentView === "k-verifikasi-sipakamase" && (
+            <KetuaVerifikasiSipakamase showToast={showToast} />
+          )}
+
+          {currentView === "k-hub-inter-ukm" && (
+            <KetuaHubInterUKM
+              onNavigate={navigateTo}
+              onSelectPost={(post) => {
+                setSelectedPost(post);
+                navigateTo("k-detail-kolaborasi");
+              }}
+              showToast={showToast}
+            />
+          )}
+
+          {currentView === "k-detail-kolaborasi" && (
+            <KetuaDetailKolaborasi
+              post={selectedPost}
+              onBack={() => navigateTo("k-hub-inter-ukm")}
+              showToast={showToast}
+            />
+          )}
+
+          {currentView === "k-form-publikasi" && (
+            <KetuaFormPublikasi
+              onBack={() => navigateTo("k-hub-inter-ukm")}
+              showToast={showToast}
+            />
+          )}
+
+          {currentView === "k-manajemen-akses" && (
+            <KetuaManajemenAkses showToast={showToast} />
+          )}
+
+          {currentView === "k-log-notifikasi" && <KetuaLogNotifikasi />}
+
+          {currentView === "k-audit-log" && <KetuaAuditLog />}
+
+          {currentView === "k-profil" && (
+            <AnggotaProfile
+              currentUser={currentUser}
+              onUpdateUser={(updated) => setCurrentUser(updated)}
+              showToast={showToast}
+            />
+          )}
+
+          {currentView === "k-detail-pengumuman" && (
+            <AnggotaAnnouncementDetail
+              announcement={selectedAnnouncement}
+              onBack={() => navigateTo("k-beranda")}
+              showToast={showToast}
+            />
+          )}
+        </KetuaLayout>
       )}
     </>
   );

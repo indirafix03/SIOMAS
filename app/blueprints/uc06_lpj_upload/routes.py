@@ -185,8 +185,8 @@ def update_lpj_submission(document_id):
     if not doc or doc.Kategori != 'LPJ' or doc.Is_Deleted:
         return error_response("Dokumen LPJ tidak ditemukan", 404)
 
-    # Only uploader or admin can update
-    if doc.Uploaded_By != user.ID and user.Role != 'Admin':
+    # Only uploader or ketua can update
+    if doc.Uploaded_By != user.ID and user.Role != 'Ketua':
         return error_response("Anda tidak memiliki akses untuk mengubah berkas ini", 403)
 
     if doc.Status == 'Approved':

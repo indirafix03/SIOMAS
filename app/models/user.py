@@ -10,7 +10,7 @@ class User(db.Model):
     NIM = db.Column(db.String(50), nullable=True)
     Email = db.Column(db.String(255), unique=True, nullable=False)
     Password_Hash = db.Column(db.String(255), nullable=False)
-    Role = db.Column(db.Enum('Admin', 'Pengurus', 'Anggota', name='role_enum'), nullable=False)
+    Role = db.Column(db.Enum('Ketua', 'Pengurus', 'Anggota', name='role_enum'), nullable=False)
     Job_Desc = db.Column(db.String(255), nullable=True)
     Status_Keanggotaan = db.Column(db.Enum('Menunggu Verifikasi', 'Aktif', 'Alumni', name='status_keanggotaan_enum'), nullable=False, default='Menunggu Verifikasi')
     Created_At = db.Column(db.DateTime, default=utc_now)

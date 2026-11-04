@@ -4,7 +4,7 @@ class RolePermission(db.Model):
     __tablename__ = 'role_permissions'
 
     ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    Role_Name = db.Column(db.Enum('Admin', 'Pengurus', 'Anggota', name='role_permission_enum'), nullable=False)
+    Role_Name = db.Column(db.Enum('Ketua', 'Pengurus', 'Anggota', name='role_permission_enum'), nullable=False)
     Permission_ID = db.Column(db.Integer, db.ForeignKey('permissions.ID', ondelete='CASCADE'), nullable=True)
 
     permission = db.relationship('Permission', backref=db.backref('role_permissions', lazy='dynamic'))

@@ -29,7 +29,7 @@ export default function Pending({ registeredUser, onNavigate }) {
         {/* Headings */}
         <h1 className="pending-title">Pendaftaranmu berhasil dikirim</h1>
         <p className="pending-desc">
-          Admin sedang memeriksa data keanggotaan kamu. Kami akan mengirimkan notifikasi setelah akun disetujui.
+          Ketua UKM sedang memeriksa data keanggotaan kamu. Kami akan mengirimkan notifikasi setelah akun disetujui.
         </p>
 
         {/* Information Grid */}

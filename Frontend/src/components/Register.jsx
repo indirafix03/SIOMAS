@@ -39,7 +39,7 @@ export default function Register({ onNavigate, showToast, onRegisterSuccess }) {
       const { ok, status, data } = await authApi.register(formData);
 
       if (ok && (data.status === 'success' || data.success)) {
-        showToast('Pendaftaran berhasil dikirim! Menunggu verifikasi admin.', 'success');
+        showToast('Pendaftaran berhasil dikirim! Menunggu verifikasi Ketua UKM.', 'success');
         if (onRegisterSuccess) {
           onRegisterSuccess({ nama, email, ukm, divisi });
         }

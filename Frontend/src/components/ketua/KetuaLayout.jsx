@@ -164,7 +164,7 @@ export default function KetuaLayout({
           <div className="portal-topbar-actions">
             <div className="portal-status-badge">
               <span className="label">Status</span>
-              <span className="value">Ketua UKM / Admin</span>
+              <span className="value">Ketua UKM</span>
             </div>
 
             <button
@@ -187,7 +187,7 @@ export default function KetuaLayout({
               </div>
               <div className="portal-user-info">
                 <span className="portal-user-name">{currentUser?.nama || 'Ardi Pratama'}</span>
-                <span className="portal-user-role">Ketua UKM / Admin</span>
+                <span className="portal-user-role">Ketua UKM</span>
               </div>
               <ChevronRight size={14} color="#94A3B8" />
             </div>
