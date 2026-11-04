@@ -12,7 +12,10 @@ build/
 *.egg-info/
 uploads/*
 !uploads/.gitkeep
+Backend/uploads/*
+!Backend/uploads/.gitkeep
 .env
+Backend/.env
 
 # Node & Frontend
 node_modules/

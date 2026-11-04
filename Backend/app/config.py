@@ -31,7 +31,8 @@ class Config:
     JWT_ERROR_MESSAGE_KEY = 'message'
     
     # File Uploads
-    UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', os.path.join(basedir, 'uploads'))
+    _raw_upload_folder = os.getenv('UPLOAD_FOLDER', 'uploads')
+    UPLOAD_FOLDER = _raw_upload_folder if os.path.isabs(_raw_upload_folder) else os.path.join(basedir, _raw_upload_folder)
     MAX_CONTENT_LENGTH = int(os.getenv('MAX_CONTENT_LENGTH_MB', 10)) * 1024 * 1024
     ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'jpg', 'jpeg', 'png'}
     
