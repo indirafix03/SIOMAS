@@ -15,6 +15,9 @@ class Document(db.Model):
     uploader = db.relationship('User', foreign_keys=[Uploaded_By], backref='uploaded_documents')
     approver = db.relationship('User', foreign_keys=[Approved_By], backref='approved_documents')
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
     def to_dict(self):
         catatan_revisi = None
         if self.Status in ('Revisi', 'Approved'):

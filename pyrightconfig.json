@@ -1,0 +1,14 @@
+{
+  "include": [
+    "Backend"
+  ],
+  "extraPaths": [
+    "Backend"
+  ],
+  "venvPath": ".",
+  "venv": ".venv",
+  "typeCheckingMode": "off",
+  "reportCallIssue": "none",
+  "reportAttributeAccessIssue": "none",
+  "reportGeneralTypeIssues": "none"
+}

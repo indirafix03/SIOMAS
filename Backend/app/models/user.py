@@ -17,6 +17,9 @@ class User(db.Model):
     Created_By = db.Column(db.Integer, db.ForeignKey('users.ID', ondelete='SET NULL'), nullable=True)
     Updated_By = db.Column(db.Integer, db.ForeignKey('users.ID', ondelete='SET NULL'), nullable=True)
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
     def set_password(self, raw_password: str):
         salt = bcrypt.gensalt()
         self.Password_Hash = bcrypt.hashpw(raw_password.encode('utf-8'), salt).decode('utf-8')

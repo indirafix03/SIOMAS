@@ -378,9 +378,9 @@ export const parseInterUkmPost = (item) => {
     desc: cleanDesc,
     deskripsi: cleanDesc,
     detail: cleanDesc,
-    tertarik: 0,
-    likes: 0,
-    isLiked: false,
+    tertarik: item.interest_count || 0,
+    likes: item.interest_count || 0,
+    isLiked: Boolean(item.is_interested),
     status: isPending ? 'pending' : 'approved',
     isPublished: !isPending,
     contactName: contactPerson,
@@ -450,6 +450,12 @@ export const interUkmApi = {
     return apiFetch(`/interukm/posts/${id}/reject`, {
       method: 'POST',
       body: JSON.stringify({ alasan_penolakan: alasan })
+    });
+  },
+
+  toggleInterest: async (id) => {
+    return apiFetch(`/interukm/posts/${id}/interest`, {
+      method: 'POST'
     });
   }
 };

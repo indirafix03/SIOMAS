@@ -15,6 +15,9 @@ class AuditLog(db.Model):
 
     user = db.relationship('User', foreign_keys=[User_ID], backref='audit_logs')
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
     def to_dict(self):
         return {
             'id': self.ID,

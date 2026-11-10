@@ -16,7 +16,25 @@ class InterUKMPost(db.Model):
     creator = db.relationship('User', foreign_keys=[Created_By], backref='interukm_created')
     approver = db.relationship('User', foreign_keys=[Approved_By], backref='interukm_approved')
 
-    def to_dict(self):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def to_dict(self, current_user_id=None):
+        interest_count = 0
+        is_interested = False
+        try:
+            from app.models.audit_log import AuditLog
+            logs = AuditLog.query.filter(
+                AuditLog.Aksi == 'INTEREST_INTERUKM',
+                AuditLog.Detail.like(f"%[POST_ID:{self.ID}]%")
+            ).all()
+            interested_users = {l.User_ID for l in logs if l.User_ID is not None}
+            interest_count = len(interested_users)
+            if current_user_id and current_user_id in interested_users:
+                is_interested = True
+        except Exception:
+            pass
+
         return {
             'id': self.ID,
             'ukm_pengirim': self.UKM_Pengirim,
@@ -27,7 +45,9 @@ class InterUKMPost(db.Model):
             'created_by': self.Created_By,
             'created_by_name': self.creator.Nama if self.creator else None,
             'approved_by': self.Approved_By,
-            'approver_name': self.approver.Nama if self.approver else None
+            'approver_name': self.approver.Nama if self.approver else None,
+            'interest_count': interest_count,
+            'is_interested': is_interested
         }
 
     def __repr__(self):

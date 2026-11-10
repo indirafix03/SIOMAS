@@ -6,6 +6,8 @@ export default function KetuaDetailKolaborasi({ post, onBack, onStatusChange, sh
   const [imgError, setImgError] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [localStatus, setLocalStatus] = useState(post?.status || 'approved');
+  const [interested, setInterested] = useState(Boolean(post?.isLiked));
+  const [interestCount, setInterestCount] = useState(post?.tertarik || post?.likes || 0);
 
   const data = post || {
     id: 1,
@@ -45,6 +47,40 @@ export default function KetuaDetailKolaborasi({ post, onBack, onStatusChange, sh
       window.open(data.fileUrl, '_blank');
     } else if (data.proposal) {
       showToast && showToast(`Lampiran tercatat: ${data.proposal}`, 'info');
+    }
+  };
+
+  const handleContact = () => {
+    let cleanPhone = (data.contactWa || '').replace(/[^0-9]/g, '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = '62' + cleanPhone.slice(1);
+    }
+    const text = encodeURIComponent(
+      `Halo ${data.contactName}, saya menghubungi terkait publikasi kolaborasi "${data.judul}" di Hub Inter-UKM SIOMAS.`
+    );
+    if (cleanPhone) {
+      window.open(`https://wa.me/${cleanPhone}?text=${text}`, '_blank');
+      showToast && showToast(`Membuka WhatsApp ke ${data.contactName} (${data.contactWa})...`, 'success');
+    } else {
+      showToast && showToast(`Nomor WhatsApp narahubung (${data.contactName}) belum dicantumkan.`, 'warning');
+    }
+  };
+
+  const handleInterest = async () => {
+    const res = await interUkmApi.toggleInterest(data.id);
+    if (res.ok && res.data?.data) {
+      const updated = res.data.data;
+      setInterested(Boolean(updated.is_interested));
+      setInterestCount(updated.interest_count || 0);
+      showToast && showToast(
+        updated.is_interested
+          ? 'Ketertarikan Anda pada kolaborasi ini berhasil dicatat!'
+          : 'Ketertarikan kolaborasi dibatalkan.',
+        'success'
+      );
+    } else {
+      setInterested(!interested);
+      showToast && showToast('Ketertarikan dicatat!', 'success');
     }
   };
 
@@ -259,13 +295,24 @@ export default function KetuaDetailKolaborasi({ post, onBack, onStatusChange, sh
               {contactInitials}
             </div>
             <div style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>{data.contactName}</div>
-            <div style={{ fontSize: '12.5px', color: '#64748B', marginBottom: '16px' }}>{data.contactRole}</div>
+            <div style={{ fontSize: '12.5px', color: '#64748B', marginBottom: '4px' }}>{data.contactRole}</div>
+            {data.contactWa && data.contactWa !== '-' && (
+              <div style={{ fontSize: '12px', color: '#4F46E5', fontWeight: 600, marginBottom: '14px' }}>WA: {data.contactWa}</div>
+            )}
 
-            <button className="btn-primary" style={{ marginBottom: '10px' }} onClick={() => showToast && showToast(`Menghubungi ${data.contactName} (${data.contactWa || '-'})`, 'success')}>
+            <button className="btn-primary" style={{ marginBottom: '10px', marginTop: data.contactWa && data.contactWa !== '-' ? 0 : '12px' }} onClick={handleContact}>
               Hubungi Narahubung
             </button>
-            <button className="btn-secondary" onClick={() => showToast && showToast('Ketertarikan dicatat!', 'success')}>
-              Nyatakan Ketertarikan
+            <button
+              className="btn-secondary"
+              style={{
+                borderColor: interested ? '#10B981' : undefined,
+                color: interested ? '#059669' : undefined,
+                background: interested ? '#ECFDF5' : undefined
+              }}
+              onClick={handleInterest}
+            >
+              {interested ? `✓ Ketertarikan Dinyatakan (${interestCount})` : `Nyatakan Ketertarikan (${interestCount})`}
             </button>
           </div>
 

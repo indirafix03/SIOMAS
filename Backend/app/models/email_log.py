@@ -13,6 +13,9 @@ class EmailLog(db.Model):
 
     recipient = db.relationship('User', foreign_keys=[User_ID], backref='email_logs_received')
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
     def to_dict(self):
         return {
             'id': self.ID,

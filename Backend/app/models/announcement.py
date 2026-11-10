@@ -17,6 +17,9 @@ class Announcement(db.Model):
     reads = db.relationship('AnnouncementRead', backref='announcement', cascade='all, delete-orphan', lazy='dynamic')
     email_logs = db.relationship('EmailLog', backref='announcement', cascade='all, delete-orphan', lazy='dynamic')
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
     def to_dict(self, current_user_id=None):
         is_read = False
         read_at = None

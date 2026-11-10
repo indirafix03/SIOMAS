@@ -9,9 +9,11 @@ import {
   MessageSquare,
   Sparkles
 } from 'lucide-react';
+import { interUkmApi } from '../../services/api.js';
 
 export default function AnggotaHubDetail({ post, onBack, showToast }) {
-  const [interested, setInterested] = useState(false);
+  const [interested, setInterested] = useState(Boolean(post?.isLiked));
+  const [interestCount, setInterestCount] = useState(post?.tertarik || post?.likes || 0);
   const [imgError, setImgError] = useState(false);
 
   const detail = post || {
@@ -45,22 +47,38 @@ export default function AnggotaHubDetail({ post, onBack, showToast }) {
     .slice(0, 2)
     .toUpperCase() || 'UK';
 
-  const handleInterest = () => {
-    setInterested(!interested);
-    showToast(
-      !interested 
-        ? 'Anda telah menyatakan ketertarikan pada kolaborasi ini! Koordinator akan segera menghubungi.'
-        : 'Ketertarikan dibatalkan.',
-      'success'
-    );
+  const handleInterest = async () => {
+    const res = await interUkmApi.toggleInterest(detail.id);
+    if (res.ok && res.data?.data) {
+      const updated = res.data.data;
+      setInterested(Boolean(updated.is_interested));
+      setInterestCount(updated.interest_count || 0);
+      showToast(
+        updated.is_interested
+          ? 'Ketertarikan Anda telah dicatat di sistem! Narahubung dapat melihat daftar peminat.'
+          : 'Ketertarikan kolaborasi dibatalkan.',
+        'success'
+      );
+    } else {
+      setInterested(!interested);
+      showToast(res.data?.message || 'Ketertarikan diperbarui.', 'info');
+    }
   };
 
   const handleContact = () => {
-    const cleanPhone = (detail.contactWa || '').replace(/[^0-9]/g, '');
-    if (cleanPhone) {
-      window.open(`https://wa.me/${cleanPhone}`, '_blank');
+    let cleanPhone = (detail.contactWa || '').replace(/[^0-9]/g, '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = '62' + cleanPhone.slice(1);
     }
-    showToast(`Membuka kontak WhatsApp ${detail.contactPerson} (${detail.contactWa})...`, 'info');
+    const text = encodeURIComponent(
+      `Halo ${detail.contactPerson}, saya tertarik untuk berdiskusi mengenai publikasi kolaborasi "${detail.judul}" di Hub Inter-UKM SIOMAS.`
+    );
+    if (cleanPhone) {
+      window.open(`https://wa.me/${cleanPhone}?text=${text}`, '_blank');
+      showToast(`Membuka WhatsApp ke ${detail.contactPerson} (${detail.contactWa})...`, 'success');
+    } else {
+      showToast(`Nomor WhatsApp narahubung (${detail.contactPerson}) belum dicantumkan.`, 'warning');
+    }
   };
 
   const handlePreviewPdf = () => {
@@ -206,11 +224,16 @@ export default function AnggotaHubDetail({ post, onBack, showToast }) {
             <h4 style={{ fontSize: '17px', fontWeight: 800, color: '#0F172A', marginBottom: '4px' }}>
               {detail.contactPerson}
             </h4>
-            <p style={{ fontSize: '13px', color: '#64748B', lineHeight: '1.4', marginBottom: '24px' }}>
+            <p style={{ fontSize: '13px', color: '#64748B', lineHeight: '1.4', marginBottom: '4px' }}>
               {detail.contactRole}
             </p>
+            {detail.contactWa && detail.contactWa !== '-' && (
+              <p style={{ fontSize: '12px', color: '#4F46E5', fontWeight: 600, marginBottom: '20px' }}>
+                WA: {detail.contactWa}
+              </p>
+            )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: detail.contactWa && detail.contactWa !== '-' ? 0 : '20px' }}>
               <button 
                 type="button" 
                 className="btn-primary-glow"
@@ -237,7 +260,7 @@ export default function AnggotaHubDetail({ post, onBack, showToast }) {
                 onClick={handleInterest}
               >
                 <Heart size={16} fill={interested ? '#10B981' : 'none'} />
-                {interested ? 'Ketertarikan Dinyatakan' : 'Nyatakan Ketertarikan'}
+                {interested ? `Ketertarikan Dinyatakan (${interestCount})` : `Nyatakan Ketertarikan (${interestCount})`}
               </button>
             </div>
           </div>

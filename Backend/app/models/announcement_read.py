@@ -12,6 +12,9 @@ class AnnouncementRead(db.Model):
 
     user = db.relationship('User', backref=db.backref('announcement_reads', lazy='dynamic'))
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
     def to_dict(self):
         return {
             'id': self.ID,

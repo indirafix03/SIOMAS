@@ -7,6 +7,9 @@ class Permission(db.Model):
     Nama_Akses = db.Column(db.String(100), unique=True, nullable=False)
     Deskripsi = db.Column(db.String(255), nullable=True)
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
     def to_dict(self):
         return {
             'id': self.ID,

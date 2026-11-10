@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { ChevronLeft, FileText, Eye, Sparkles } from 'lucide-react';
+import { interUkmApi } from '../../services/api.js';
 
 export default function PDDetailKolaborasi({ post, onBack, showToast }) {
-  const [expressed, setExpressed] = useState(false);
+  const [expressed, setExpressed] = useState(Boolean(post?.isLiked));
+  const [interestCount, setInterestCount] = useState(post?.tertarik || post?.likes || 0);
   const [imgError, setImgError] = useState(false);
 
   const data = post || {
@@ -36,16 +38,37 @@ export default function PDDetailKolaborasi({ post, onBack, showToast }) {
     .toUpperCase() || 'UK';
 
   const handleHubungi = () => {
-    const cleanPhone = (data.contactWa || '').replace(/[^0-9]/g, '');
-    if (cleanPhone) {
-      window.open(`https://wa.me/${cleanPhone}`, '_blank');
+    let cleanPhone = (data.contactWa || '').replace(/[^0-9]/g, '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = '62' + cleanPhone.slice(1);
     }
-    showToast(`Membuka WhatsApp ke ${data.contactPerson}: ${data.contactWa}`, 'success');
+    const text = encodeURIComponent(
+      `Halo ${data.contactPerson}, saya tertarik untuk berdiskusi mengenai publikasi kolaborasi "${data.judul}" di Hub Inter-UKM SIOMAS.`
+    );
+    if (cleanPhone) {
+      window.open(`https://wa.me/${cleanPhone}?text=${text}`, '_blank');
+      showToast(`Membuka WhatsApp ke ${data.contactPerson} (${data.contactWa})...`, 'success');
+    } else {
+      showToast(`Nomor WhatsApp narahubung (${data.contactPerson}) belum dicantumkan.`, 'warning');
+    }
   };
 
-  const handleNyatakan = () => {
-    setExpressed(true);
-    showToast(`Ketertarikan berhasil dinyatakan. ${data.contactPerson} akan segera menghubungi Anda.`, 'success');
+  const handleNyatakan = async () => {
+    const res = await interUkmApi.toggleInterest(data.id);
+    if (res.ok && res.data?.data) {
+      const updated = res.data.data;
+      setExpressed(Boolean(updated.is_interested));
+      setInterestCount(updated.interest_count || 0);
+      showToast(
+        updated.is_interested
+          ? `Ketertarikan berhasil dicatat di sistem! ${data.contactPerson} akan segera menghubungi Anda.`
+          : 'Ketertarikan kolaborasi dibatalkan.',
+        'success'
+      );
+    } else {
+      setExpressed(!expressed);
+      showToast(`Ketertarikan berhasil dinyatakan.`, 'success');
+    }
   };
 
   const handlePreview = () => {
@@ -182,7 +205,10 @@ export default function PDDetailKolaborasi({ post, onBack, showToast }) {
           </div>
 
           <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: '0 0 4px' }}>{data.contactPerson}</h4>
-          <p style={{ fontSize: '12px', color: '#64748B', marginBottom: '20px', lineHeight: '1.5' }}>{data.contactRole}</p>
+          <p style={{ fontSize: '12px', color: '#64748B', marginBottom: '4px', lineHeight: '1.5' }}>{data.contactRole}</p>
+          {data.contactWa && data.contactWa !== '-' && (
+            <p style={{ fontSize: '12px', color: '#4F46E5', fontWeight: 600, marginBottom: '16px' }}>WA: {data.contactWa}</p>
+          )}
 
           <button
             type="button"
@@ -198,9 +224,8 @@ export default function PDDetailKolaborasi({ post, onBack, showToast }) {
             className="portal-outline-btn"
             style={{ width: '100%', padding: '11px', fontWeight: 600, background: expressed ? '#F0FDF4' : undefined, color: expressed ? '#16A34A' : undefined, borderColor: expressed ? '#16A34A' : undefined }}
             onClick={handleNyatakan}
-            disabled={expressed}
           >
-            {expressed ? '✓ Tertarik Berkolaborasi' : 'Nyatakan Ketertarikan'}
+            {expressed ? `✓ Tertarik Berkolaborasi (${interestCount})` : `Nyatakan Ketertarikan (${interestCount})`}
           </button>
         </div>
       </div>

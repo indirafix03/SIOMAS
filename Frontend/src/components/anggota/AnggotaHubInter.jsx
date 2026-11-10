@@ -57,18 +57,16 @@ export default function AnggotaHubInter({ onNavigate, onSelectPost, showToast })
     loadHubData();
   }, [loadHubData]);
 
-  const handleToggleLike = (postId) => {
-    setPosts(posts.map((post) => {
-      if (post.id === postId) {
-        const nextLiked = !post.isLiked;
-        return {
-          ...post,
-          isLiked: nextLiked,
-          likes: nextLiked ? post.likes + 1 : post.likes - 1
-        };
-      }
-      return post;
-    }));
+  const handleToggleLike = async (postId) => {
+    const res = await interUkmApi.toggleInterest(postId);
+    if (res.ok && res.data?.data) {
+      const updated = res.data.data;
+      setPosts(posts.map((post) =>
+        post.id === postId
+          ? { ...post, isLiked: Boolean(updated.is_interested), likes: updated.interest_count || 0, tertarik: updated.interest_count || 0 }
+          : post
+      ));
+    }
   };
 
   const handleShare = (post) => {

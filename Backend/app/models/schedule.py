@@ -15,6 +15,9 @@ class Schedule(db.Model):
     division_pic = db.relationship('User', foreign_keys=[Divisi_ID], backref='schedules_in_charge')
     updater = db.relationship('User', foreign_keys=[Updated_By], backref='schedules_updated')
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
     def to_dict(self):
         return {
             'id': self.ID,

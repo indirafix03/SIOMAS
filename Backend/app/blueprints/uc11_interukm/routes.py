@@ -47,9 +47,11 @@ def list_approved_feed():
         )
 
     posts = query.order_by(InterUKMPost.Date.desc()).all()
+    user = get_current_user()
+    uid = user.ID if user else None
 
     return success_response(
-        data=[p.to_dict() for p in posts],
+        data=[p.to_dict(current_user_id=uid) for p in posts],
         total=len(posts),
         message="Feed Inter-UKM berhasil diambil"
     )
@@ -62,6 +64,8 @@ def create_interukm_post():
     Buat Postingan Inter-UKM (mendukung JSON maupun multipart/form-data dengan foto & proposal)
     """
     user = get_current_user()
+    if not user:
+        return error_response("User tidak ditemukan atau sesi tidak valid", 401)
 
     if request.content_type and 'multipart/form-data' in request.content_type:
         ukm = (request.form.get('ukm_pengirim') or '').strip()
@@ -96,7 +100,7 @@ def create_interukm_post():
         prop_path = os.path.join(upload_dir, saved_prop)
         proposal_file.save(prop_path)
         size_kb = os.path.getsize(prop_path) / 1024.0
-        if f"Lampiran:" not in isi:
+        if "Lampiran:" not in isi:
             isi = f"{isi} • Lampiran: {orig_name} ({size_kb:.1f} KB)"
         isi = f"{isi} • FileURL: /api/v1/interukm/files/{saved_prop}"
 
@@ -114,7 +118,7 @@ def create_interukm_post():
     log_audit("CREATE_INTERUKM_POST", "Inter-UKM", f"Pengajuan Inter-UKM dari {ukm}: '{judul}' (ID: {post.ID})")
 
     return success_response(
-        data=post.to_dict(),
+        data=post.to_dict(current_user_id=user.ID),
         message="Postingan Inter-UKM berhasil diajukan dan menunggu persetujuan ketua/admin",
         code=201
     )
@@ -126,12 +130,14 @@ def list_pending_posts():
     """
     Daftar Antrean Persetujuan Inter-UKM
     """
+    user = get_current_user()
+    uid = user.ID if user else None
     pending_posts = InterUKMPost.query.filter_by(
         Status_Persetujuan='Pending'
     ).order_by(InterUKMPost.Date.asc()).all()
 
     return success_response(
-        data=[p.to_dict() for p in pending_posts],
+        data=[p.to_dict(current_user_id=uid) for p in pending_posts],
         total=len(pending_posts),
         message="Daftar antrean persetujuan Inter-UKM berhasil diambil"
     )
@@ -144,6 +150,8 @@ def approve_interukm_post(post_id):
     Setujui Postingan Inter-UKM
     """
     user = get_current_user()
+    if not user:
+        return error_response("User tidak ditemukan", 401)
     post = db.session.get(InterUKMPost, post_id)
     if not post:
         return error_response("Postingan Inter-UKM tidak ditemukan", 404)
@@ -155,7 +163,7 @@ def approve_interukm_post(post_id):
     log_audit("APPROVE_INTERUKM", "Inter-UKM", f"Postingan disetujui: '{post.Judul}' dari {post.UKM_Pengirim} (ID: {post.ID})")
 
     return success_response(
-        data=post.to_dict(),
+        data=post.to_dict(current_user_id=user.ID),
         message=f"Postingan '{post.Judul}' berhasil disetujui dan kini tampil di feed"
     )
 
@@ -167,6 +175,8 @@ def reject_interukm_post(post_id):
     Tolak Postingan Inter-UKM
     """
     user = get_current_user()
+    if not user:
+        return error_response("User tidak ditemukan", 401)
     post = db.session.get(InterUKMPost, post_id)
     if not post:
         return error_response("Postingan Inter-UKM tidak ditemukan", 404)
@@ -186,7 +196,7 @@ def reject_interukm_post(post_id):
 
     return success_response(
         data={
-            "post": post.to_dict(),
+            "post": post.to_dict(current_user_id=user.ID),
             "alasan_penolakan": alasan
         },
         message=f"Postingan '{post.Judul}' telah ditolak"
@@ -200,12 +210,52 @@ def list_my_posts():
     Daftar Postingan Saya
     """
     user = get_current_user()
+    if not user:
+        return error_response("User tidak ditemukan", 401)
     my_posts = InterUKMPost.query.filter_by(
         Created_By=user.ID
     ).order_by(InterUKMPost.Date.desc()).all()
 
     return success_response(
-        data=[p.to_dict() for p in my_posts],
+        data=[p.to_dict(current_user_id=user.ID) for p in my_posts],
         total=len(my_posts),
         message="Daftar postingan Inter-UKM Anda berhasil diambil"
     )
+
+
+@interukm_bp.route('/posts/<int:post_id>/interest', methods=['POST'])
+@jwt_required()
+def toggle_interest_interukm(post_id):
+    """Catat atau batalkan ketertarikan kolaborasi Inter-UKM."""
+    from app.models.audit_log import AuditLog
+    user = get_current_user()
+    if not user:
+        return error_response("User tidak ditemukan", 401)
+    post = db.session.get(InterUKMPost, post_id)
+    if not post:
+        return error_response("Postingan Inter-UKM tidak ditemukan", 404)
+
+    existing = AuditLog.query.filter(
+        AuditLog.Aksi == 'INTEREST_INTERUKM',
+        AuditLog.User_ID == user.ID,
+        AuditLog.Detail.like(f"%[POST_ID:{post.ID}]%")
+    ).all()
+
+    if existing:
+        for row in existing:
+            db.session.delete(row)
+        db.session.commit()
+        return success_response(
+            data=post.to_dict(current_user_id=user.ID),
+            message="Ketertarikan kolaborasi dibatalkan"
+        )
+    else:
+        log_audit(
+            "INTEREST_INTERUKM",
+            "Inter-UKM",
+            f"[POST_ID:{post.ID}] {user.Nama} menyatakan tertarik pada kolaborasi '{post.Judul}'"
+        )
+        return success_response(
+            data=post.to_dict(current_user_id=user.ID),
+            message=f"Ketertarikan Anda pada '{post.Judul}' berhasil dicatat!"
+        )
