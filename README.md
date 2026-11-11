@@ -79,8 +79,26 @@ flowchart TD
 
 ```text
 siomas-flask/
-├── Backend-Express/               # [UTAMA] Server Tier — Node.js + Express.js REST API
-│   ├── server.js                  # Entry point Express.js, Sequelize Pool, JWT, Cron, ZIP, Swagger
+├── Backend-Express/               # [UTAMA] Server Tier — Node.js + Express.js REST API (Modular)
+│   ├── config/
+│   │   ├── database.js            # Koneksi Neon Cloud PostgreSQL (pg Pool + Sequelize ORM)
+│   │   └── upload.js              # Konfigurasi Multer penyimpanan berkas (Maks. 10MB)
+│   ├── middlewares/
+│   │   └── authMiddleware.js      # JWT Authentication (Header/Cookie/Query) & RBAC Role Guard
+│   ├── services/
+│   │   └── emailService.js        # Nodemailer SMTP + node-cron UC-12 Reminder (Attempt 1, 2, 3)
+│   ├── utils/
+│   │   └── helpers.js             # Bcrypt hashing, parser organisasi UKM & Audit Trail Logger
+│   ├── routes/
+│   │   ├── swaggerRoutes.js       # Health check (/api/v1/health) & Swagger UI (/apidocs)
+│   │   ├── authRoutes.js          # UC-01 & UC-03: Register, Login, Verifikasi & RBAC Anggota
+│   │   ├── profileRoutes.js       # UC-02: Profil Pengguna & Jobdesk UKM
+│   │   ├── scheduleRoutes.js      # UC-04 & UC-05: Kalender Agenda Kegiatan UKM
+│   │   ├── announcementRoutes.js  # UC-08: Pengumuman Berprioritas & Status Baca
+│   │   ├── documentRoutes.js      # UC-06, UC-09, UC-10: LPJ, Sipakamase, Vault & Bundel .ZIP
+│   │   ├── interukmRoutes.js      # UC-11: Hub Inter-UKM & Kolaborasi Lintas UKM (BR-02)
+│   │   └── notificationRoutes.js  # UC-07 & UC-12: Statistik, Log Email, Scheduler, Webhook & Audit
+│   ├── server.js                  # Entry point utama yang merangkai middleware & seluruh routes
 │   ├── package.json               # Dependensi Node.js (express, sequelize, pg, jsonwebtoken, dll.)
 │   └── .env                       # Konfigurasi koneksi Neon Cloud PostgreSQL & JWT Secret
 ├── Frontend/                      # [UTAMA] Client Tier — React 18 + Vite 5 Responsive Web UI
