@@ -3,17 +3,15 @@ import {
   Download,
   Search,
   FileText,
-  Edit3,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
-import ModalEditDokumen from './ModalEditDokumen.jsx';
 import { documentsApi } from '../../services/api.js';
 
+// SRS UC-10: Anggota hanya dapat melihat & mengunduh dokumen yang sudah divalidasi (read-only)
 export default function AnggotaVault({ showToast }) {
   const [activeFilter, setActiveFilter] = useState('Semua');
   const [searchQuery, setSearchQuery] = useState('');
-  const [editingDoc, setEditingDoc] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [documents, setDocuments] = useState([]);
 
@@ -48,12 +46,6 @@ export default function AnggotaVault({ showToast }) {
     return matchesCategory && matchesSearch;
   });
 
-  const handleSaveCategory = (updatedDoc) => {
-    setDocuments(documents.map((d) => d.id === updatedDoc.id ? updatedDoc : d));
-    setEditingDoc(null);
-    showToast(`Kategorisasi dokumen "${updatedDoc.nama}" berhasil diperbarui.`, 'success');
-  };
-
   const handleDownload = async (doc) => {
     const ok = await documentsApi.download(doc.id, doc.nama);
     if (ok) {
@@ -71,7 +63,7 @@ export default function AnggotaVault({ showToast }) {
           <div>
             <span className="page-category-tag">PUSAT DOKUMEN</span>
             <h1 className="page-title">Repository Vault</h1>
-            <p className="page-subtitle">Kelola dan temukan dokumen organisasi dalam satu tempat.</p>
+            <p className="page-subtitle">Lihat dan unduh dokumen organisasi yang telah divalidasi.</p>
           </div>
           <button
             type="button"
@@ -175,14 +167,6 @@ export default function AnggotaVault({ showToast }) {
                         <button
                           type="button"
                           className="table-action-btn"
-                          title="Ubah Label & Tag"
-                          onClick={() => setEditingDoc(doc)}
-                        >
-                          <Edit3 size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          className="table-action-btn"
                           title="Unduh Berkas"
                           onClick={() => handleDownload(doc)}
                         >
@@ -223,15 +207,6 @@ export default function AnggotaVault({ showToast }) {
           </div>
         </div>
       </div>
-
-      {/* Edit Kategorisasi Modal */}
-      {editingDoc && (
-        <ModalEditDokumen
-          document={editingDoc}
-          onClose={() => setEditingDoc(null)}
-          onSave={handleSaveCategory}
-        />
-      )}
     </div>
   );
 }

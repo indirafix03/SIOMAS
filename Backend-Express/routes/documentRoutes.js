@@ -27,7 +27,7 @@ function formatDocRow(d) {
 }
 
 // UC-06: Upload Draft LPJ
-router.post(['/api/v1/lpj/upload', '/api/documents/upload'], requireAuth, upload.single('file'), async (req, res) => {
+router.post(['/api/v1/lpj/upload', '/api/documents/upload'], requireAuth, requireRole('Pengurus', 'Ketua', 'Admin'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ status: 'error', message: 'Berkas wajib diunggah.' });
@@ -60,7 +60,7 @@ router.post(['/api/v1/lpj/upload', '/api/documents/upload'], requireAuth, upload
 });
 
 // UC-06: Update / Resubmit Revised LPJ
-router.put(['/api/v1/lpj/:id'], requireAuth, upload.single('file'), async (req, res) => {
+router.put(['/api/v1/lpj/:id'], requireAuth, requireRole('Pengurus', 'Ketua', 'Admin'), upload.single('file'), async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     const { rows: oldRows } = await pool.query('SELECT * FROM documents WHERE "ID" = $1', [id]);
@@ -256,7 +256,7 @@ router.post('/api/v1/sipakamase/:id/verify', requireAuth, requireRole('Ketua', '
 router.patch('/api/v1/sipakamase/:id/verify', requireAuth, requireRole('Ketua', 'Admin'), handleVerifySipakamase);
 router.put('/api/v1/sipakamase/:id/verify', requireAuth, requireRole('Ketua', 'Admin'), handleVerifySipakamase);
 
-router.post('/api/v1/sipakamase/upload', requireAuth, upload.single('file'), async (req, res) => {
+router.post('/api/v1/sipakamase/upload', requireAuth, requireRole('Pengurus', 'Ketua', 'Admin'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ status: 'error', message: 'Berkas Sipakamase wajib diunggah.' });
     const namaBerkas = (req.body.nama_berkas || req.file.originalname).trim();
@@ -286,6 +286,10 @@ router.get(['/api/v1/documents', '/api/documents'], requireAuth, async (req, res
     let filtered = actorUkm
       ? rows.filter(r => !r.uploader_job || getUkmFromJobDesc(r.uploader_job) === actorUkm)
       : rows;
+    // SRS: Anggota hanya dapat melihat dokumen yang sudah divalidasi (Approved)
+    if (req.user.Role === 'Anggota') {
+      filtered = filtered.filter(r => r.Status === 'Approved');
+    }
     if (req.query.kategori && req.query.kategori !== 'Semua') {
       filtered = filtered.filter(r => r.Kategori === req.query.kategori);
     }
@@ -295,7 +299,8 @@ router.get(['/api/v1/documents', '/api/documents'], requireAuth, async (req, res
   }
 });
 
-router.post(['/api/v1/documents/upload'], requireAuth, upload.single('file'), async (req, res) => {
+// SRS: Anggota hanya melihat & mengunduh; unggah dokumen dilakukan Pengurus Divisi / Admin
+router.post(['/api/v1/documents/upload'], requireAuth, requireRole('Pengurus', 'Ketua', 'Admin'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ status: 'error', message: 'Berkas wajib dipilih.' });
     const namaBerkas = (req.body.nama_berkas || req.file.originalname).trim();
@@ -341,6 +346,9 @@ router.get(['/api/v1/documents/bundle', '/api/documents/bundle'], requireAuth, a
     let docs = actorUkm
       ? rows.filter(r => !r.uploader_job || getUkmFromJobDesc(r.uploader_job) === actorUkm)
       : rows;
+    if (req.user.Role === 'Anggota') {
+      docs = docs.filter(d => d.Status === 'Approved');
+    }
     if (kategori && kategori !== 'Semua') {
       docs = docs.filter(d => d.Kategori === kategori);
     }
@@ -382,6 +390,9 @@ router.get(['/api/v1/documents/:id/download', '/api/documents/:id/download'], re
     if (!rows.length) return res.status(404).json({ status: 'error', message: 'Dokumen tidak ditemukan.' });
 
     const doc = rows[0];
+    if (req.user.Role === 'Anggota' && doc.Status !== 'Approved') {
+      return res.status(403).json({ status: 'error', message: 'Anggota hanya dapat mengunduh dokumen yang sudah divalidasi.' });
+    }
     const fullPath = path.join(UPLOAD_DIR, path.basename(doc.Path_File || ''));
     const ext = path.extname(doc.Path_File || '') || '.pdf';
     const downloadName = `${(doc.Nama_Berkas || 'Dokumen').replace(/[^a-zA-Z0-9_.-]/g, '_')}${ext}`;
@@ -405,6 +416,17 @@ async function updateDocCategory(req, res) {
     if (!oldRows.length) return res.status(404).json({ status: 'error', message: 'Dokumen tidak ditemukan.' });
 
     const old = oldRows[0];
+    // SRS UC-10: pelabelan arsip oleh Admin/Pengurus Inti.
+    // Pengurus Divisi hanya boleh merapikan label/nama draf miliknya sendiri yang belum Approved.
+    const isAdmin = req.user.Role === 'Ketua' || req.user.Role === 'Admin';
+    const isOwnDraftByPengurus =
+      req.user.Role === 'Pengurus' && old.Uploaded_By === req.user.ID && old.Status !== 'Approved';
+    if (!isAdmin && !isOwnDraftByPengurus) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Akses ditolak. Pelabelan arsip hanya dapat dilakukan Ketua/Admin (atau Pengurus untuk draf miliknya).'
+      });
+    }
     const { rows: updated } = await pool.query(
       `UPDATE documents SET "Kategori" = $1, "Nama_Berkas" = $2, "Updated_By" = $3, "Updated_At" = NOW() WHERE "ID" = $4 RETURNING *`,
       [kategori || old.Kategori, nama_berkas || old.Nama_Berkas, req.user.ID, id]
@@ -431,7 +453,7 @@ router.patch(['/api/v1/documents/:id/category', '/api/v1/documents/:id'], requir
 router.put(['/api/v1/documents/:id/kategori', '/api/v1/documents/:id', '/api/documents/:id/kategori'], requireAuth, updateDocCategory);
 
 // UC-10: Soft-Delete Document
-router.delete(['/api/v1/documents/:id', '/api/documents/:id'], requireAuth, async (req, res) => {
+router.delete(['/api/v1/documents/:id', '/api/documents/:id'], requireAuth, requireRole('Ketua', 'Admin'), async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     const { rows: oldRows } = await pool.query('SELECT * FROM documents WHERE "ID" = $1', [id]);
