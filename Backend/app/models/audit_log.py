@@ -1,5 +1,7 @@
+import json
 from app.extensions import db
 from app.utils.datetime_helper import utc_now
+
 
 class AuditLog(db.Model):
     __tablename__ = 'audit_logs'
@@ -18,7 +20,23 @@ class AuditLog(db.Model):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+    def _parse_detail(self):
+        if not self.Detail:
+            return {"summary": "", "before": None, "after": None}
+        try:
+            parsed = json.loads(self.Detail)
+            if isinstance(parsed, dict) and ('summary' in parsed or 'before' in parsed or 'after' in parsed):
+                return {
+                    "summary": parsed.get("summary") or "",
+                    "before": parsed.get("before"),
+                    "after": parsed.get("after")
+                }
+        except Exception:
+            pass
+        return {"summary": self.Detail, "before": None, "after": None}
+
     def to_dict(self):
+        parsed = self._parse_detail()
         return {
             'id': self.ID,
             'user_id': self.User_ID,
@@ -26,8 +44,13 @@ class AuditLog(db.Model):
             'user_email': self.user.Email if self.user else None,
             'user_role': self.user.Role if self.user else None,
             'aksi': self.Aksi,
+            'action_type': self.Aksi,
             'modul': self.Modul,
-            'detail': self.Detail,
+            'target_table': self.Modul,
+            'detail': parsed['summary'],
+            'before_data': parsed['before'],
+            'after_data': parsed['after'],
+            'detail_json': parsed,
             'ip_address': self.IP_Address,
             'user_agent': self.User_Agent,
             'created_at': self.Created_At.strftime('%Y-%m-%d %H:%M:%S') if self.Created_At else None

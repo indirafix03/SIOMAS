@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   LayoutGrid, 
   Calendar, 
@@ -7,7 +7,9 @@ import {
   LifeBuoy, 
   LogOut, 
   Bell, 
-  ChevronRight 
+  ChevronRight,
+  Menu,
+  X
 } from 'lucide-react';
 
 export default function AnggotaLayout({
@@ -18,6 +20,7 @@ export default function AnggotaLayout({
   children,
   unreadCount = 0
 }) {
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   // Breadcrumb label mapping
   const breadcrumbMap = {
     dashboard: 'Beranda',
@@ -49,22 +52,45 @@ export default function AnggotaLayout({
     { key: 'hub-inter', label: 'Hub Inter-UKM', icon: Users }
   ];
 
+  const handleNavClick = (viewKey) => {
+    setMobileNavOpen(false);
+    onNavigate(viewKey);
+  };
+
   return (
     <div className="portal-container">
+      {mobileNavOpen && (
+        <div
+          className="portal-sidebar-backdrop"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+
       {/* Sidebar Navigation */}
-      <aside className="portal-sidebar">
+      <aside className={`portal-sidebar ${mobileNavOpen ? 'open' : ''}`}>
         <div>
-          <a 
-            href="#/dashboard" 
-            className="portal-sidebar-brand"
-            onClick={(e) => { e.preventDefault(); onNavigate('dashboard'); }}
-          >
-            <div className="portal-brand-logo">S</div>
-            <div className="portal-brand-text">
-              <h2>SIOMAS</h2>
-              <p>Sistem Organisasi Mahasiswa</p>
-            </div>
-          </a>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '36px' }}>
+            <a 
+              href="#/dashboard" 
+              className="portal-sidebar-brand"
+              style={{ marginBottom: 0 }}
+              onClick={(e) => { e.preventDefault(); handleNavClick('dashboard'); }}
+            >
+              <div className="portal-brand-logo">S</div>
+              <div className="portal-brand-text">
+                <h2>SIOMAS</h2>
+                <p>Sistem Organisasi Mahasiswa</p>
+              </div>
+            </a>
+            <button
+              type="button"
+              className="portal-mobile-close-btn"
+              onClick={() => setMobileNavOpen(false)}
+              aria-label="Tutup Menu"
+            >
+              <X size={20} />
+            </button>
+          </div>
 
           <div className="portal-sidebar-section-title">Menu Utama</div>
           <ul className="portal-nav-list">
@@ -79,7 +105,7 @@ export default function AnggotaLayout({
                   <button
                     type="button"
                     className={`portal-nav-item ${isActive ? 'active' : ''}`}
-                    onClick={() => onNavigate(item.key)}
+                    onClick={() => handleNavClick(item.key)}
                   >
                     <Icon size={18} />
                     <span>{item.label}</span>
@@ -122,10 +148,20 @@ export default function AnggotaLayout({
       <div className="portal-main-area">
         {/* Top Navbar */}
         <header className="portal-topbar">
-          <div className="portal-breadcrumb">
-            <span className="root">SIOMAS</span>
-            <span className="divider">/</span>
-            <span className="current">{currentLabel}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button
+              type="button"
+              className="portal-mobile-menu-btn"
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Buka Menu Navigasi"
+            >
+              <Menu size={20} />
+            </button>
+            <div className="portal-breadcrumb">
+              <span className="root">SIOMAS</span>
+              <span className="divider">/</span>
+              <span className="current">{currentLabel}</span>
+            </div>
           </div>
 
           <div className="portal-topbar-actions">

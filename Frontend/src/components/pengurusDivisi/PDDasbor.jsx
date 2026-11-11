@@ -194,26 +194,33 @@ export default function PDDasbor({ onNavigate, showToast }) {
       <div style={{
         background: 'linear-gradient(135deg, #064E3B 0%, #065F46 60%, #0F172A 100%)',
         borderRadius: '16px',
-        padding: '36px 40px',
+        padding: '32px 36px',
         marginBottom: '28px',
         position: 'relative',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '20px'
       }}>
-        <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '200px', height: '200px', background: 'rgba(16, 185, 129, 0.15)', borderRadius: '50%' }} />
-        <div style={{ position: 'absolute', bottom: '-60px', right: '80px', width: '150px', height: '150px', background: 'rgba(6, 95, 70, 0.3)', borderRadius: '50%' }} />
-        <span style={{ background: '#10B981', color: '#fff', fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '20px', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-          Divisi Organisasi
-        </span>
-        <h1 style={{ fontSize: '32px', fontWeight: 800, color: '#fff', margin: '12px 0 8px' }}>
-          Dasbor Koordinator Divisi
-        </h1>
-        <p style={{ color: '#A7F3D0', fontSize: '14px', margin: 0 }}>
-          {tasks.filter(t => !t.done).length} tugas berjalan di divisi Anda.
-        </p>
+        <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '200px', height: '200px', background: 'rgba(16, 185, 129, 0.15)', borderRadius: '50%', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: '-60px', right: '80px', width: '150px', height: '150px', background: 'rgba(6, 95, 70, 0.3)', borderRadius: '50%', pointerEvents: 'none' }} />
+        <div style={{ position: 'relative', zIndex: 2 }}>
+          <span style={{ background: '#10B981', color: '#fff', fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '20px', letterSpacing: '0.5px', textTransform: 'uppercase', display: 'inline-block' }}>
+            Divisi Organisasi
+          </span>
+          <h1 style={{ fontSize: '28px', fontWeight: 800, color: '#fff', margin: '12px 0 8px', lineHeight: 1.25 }}>
+            Dasbor Koordinator Divisi
+          </h1>
+          <p style={{ color: '#A7F3D0', fontSize: '14px', margin: 0, lineHeight: 1.5 }}>
+            {tasks.filter(t => !t.done).length} tugas berjalan di divisi Anda.
+          </p>
+        </div>
         <button
           type="button"
           className="btn-primary-glow"
-          style={{ position: 'absolute', right: '40px', top: '50%', transform: 'translateY(-50%)', padding: '12px 22px', background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.25)' }}
+          style={{ position: 'relative', zIndex: 2, padding: '12px 22px', background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.25)' }}
           onClick={() => onNavigate('pd-delegasi')}
         >
           <Users size={16} /> Atur Delegasi Tugas &amp; Presensi

@@ -133,19 +133,19 @@ export default function KetuaValidasiLPJ({ showToast }) {
       )}
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px' }}>
+      <div className="responsive-page-header">
         <div>
-          <span style={{ fontSize: '12px', fontWeight: 700, color: '#4F46E5', letterSpacing: '0.06em', textTransform: 'uppercase' }}>KONSOL ADMIN</span>
+          <span style={{ fontSize: '12px', fontWeight: 700, color: '#4F46E5', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>KONSOL ADMIN</span>
           <h1 className="page-title">Validasi &amp; Approval LPJ</h1>
-          <p className="page-subtitle">Tinjau dokumen dari divisi sebelum masuk Repository Vault.</p>
+          <p className="page-subtitle" style={{ lineHeight: 1.55, marginTop: '6px' }}>Tinjau dokumen dari divisi sebelum masuk Repository Vault.</p>
         </div>
-        <span style={{ fontSize: '13px', fontWeight: 700, color: '#D97706' }}>{antrian.length} menunggu validasi</span>
+        <span style={{ fontSize: '13px', fontWeight: 700, color: '#D97706', background: '#FEF3C7', padding: '6px 14px', borderRadius: '999px', whiteSpace: 'nowrap' }}>{antrian.length} menunggu validasi</span>
       </div>
 
       {/* 3-Column Layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr 280px', gap: '20px' }}>
+      <div className="responsive-3col-grid">
         {/* Left: Antrian */}
-        <div className="portal-card" style={{ padding: 0 }}>
+        <div className="portal-card" style={{ padding: 0, minWidth: 0 }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F5F9' }}>
             <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>Antrean Dokumen</h3>
             <p style={{ fontSize: '12px', color: '#94A3B8', marginTop: '2px' }}>Urut berdasarkan terbaru</p>
@@ -186,18 +186,18 @@ export default function KetuaValidasiLPJ({ showToast }) {
         </div>
 
         {/* Center: Document Preview */}
-        <div className="portal-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '500px' }}>
+        <div className="portal-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '360px', minWidth: 0 }}>
           {selectedDoc ? (
             <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: '20px' }}>
-                <div>
-                  <div style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>{selectedDoc.nama}</div>
-                  <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '2px' }}>Diunggah oleh {selectedDoc.koordinator}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', width: '100%', marginBottom: '20px' }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', lineHeight: 1.4, wordBreak: 'break-word' }}>{selectedDoc.nama}</div>
+                  <div style={{ fontSize: '12.5px', color: '#94A3B8', marginTop: '4px' }}>Diunggah oleh {selectedDoc.koordinator}</div>
                 </div>
                 <button
                   onClick={handleDownload}
                   title="Unduh berkas LPJ"
-                  style={{ background: 'none', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#64748B', fontFamily: 'inherit' }}
+                  style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '7px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#334155', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
                 >
                   ↓ Unduh
                 </button>
@@ -207,7 +207,7 @@ export default function KetuaValidasiLPJ({ showToast }) {
               <div style={{
                 flex: 1, width: '100%', background: '#F8FAFC', borderRadius: '12px',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                border: '2px dashed #E2E8F0', minHeight: '350px', gap: '12px'
+                border: '2px dashed #E2E8F0', minHeight: '280px', padding: '24px 16px', gap: '12px'
               }}>
                 <div style={{
                   width: '130px', height: '160px', background: '#fff', borderRadius: '6px',

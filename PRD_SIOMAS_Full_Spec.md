@@ -28,28 +28,40 @@
 ---
 
 ## 2. ARSITEKTUR SISTEM & STACK TEKNOLOGI FULL-STACK
-Aplikasi dibangun menggunakan **Arsitektur 3-Tier Decoupled**:
+Aplikasi dibangun menggunakan **Arsitektur 3-Tier Decoupled (RESTful Client-Server)**:
 
 ```
-[Presentation Layer]       [Application/Business Layer]       [Data/Infrastructure Layer]
- React.js Web Client  <-->   Node.js + Express.js API   <-->   MySQL RDBMS (Sequelize/Prisma)
- (PWA-ready Responsive)      JWT Auth & RBAC Middleware          Cloud Storage (AWS S3 / GCS)
-                             Cron Job Scheduler (node-cron)      SMTP Relay (SendGrid / Mailtrap)
+[Presentation Layer]          [Application/Business Layer]            [Data/Infrastructure Layer]
+ React.js 18 + Vite     <-->   Node.js + Express.js REST API     <--> Neon Cloud PostgreSQL (Sequelize + pg Pool)
+ (Responsive SPA UI)           JWT Authentication & Bcrypt RBAC       Shared Cloud DB + Local/Cloud File Storage
+                               node-cron Scheduler + Nodemailer       Archiver (.ZIP Bundle) + SMTP Webhook
 ```
 
 1. **Presentation Layer (Frontend):**
-   * Framework: React.js (Component-based architecture).
-   * Styling: Tailwind CSS / CSS Modules dengan variabel Design System SIOMAS.
-   * State Management: Client-side state untuk JWT Token, Role Switching (simulasi), dan UI feedback.
+   * Framework: React.js 18 + Vite (Component-based architecture, Responsive Desktop/Tablet/Mobile & PWA-Ready).
+   * Styling: Custom CSS Modules & variabel Design System SIOMAS.
+   * State Management: Client-side state untuk JWT Token (`siomas_token`), Role-Based Portal (`Anggota`, `Pengurus Divisi`, `Ketua UKM`), dan UI feedback real-time.
 2. **Business/Application Layer (Backend):**
-   * Runtime & Framework: Node.js dengan Express.js REST API.
-   * Otentikasi: Stateless JWT (JSON Web Token) dengan masa berlaku 24 jam (`NFR-SEC-03`).
-   * Enkripsi Kata Sandi: Bcrypt hashing satu arah dengan cost factor minimal 10 (`NFR-SEC-02`).
-   * Asynchronous Task Queue: BullMQ / Redis & `node-cron` untuk eksekusi email pengingat terandalkan tanpa memblokir thread utama API (`NFR-PERF-03`).
-   * Mailer: Nodemailer terintegrasi dengan SMTP Relay Relay (SendGrid / Mailtrap Staging).
+   * Runtime & Framework: **Node.js + Express.js REST API** ([Backend-Express/server.js](file:///d:/Indi/Semester%205/PPL/siomas-flask/siomas-flask/Backend-Express/server.js)) yang melayani seluruh Use Case (`UC-01` s/d `UC-12`) secara modular *(serta kompatibel penuh dengan modul Python Flask fallback di `Backend/`)*.
+   * ORM & Database Abstraction: **Sequelize ORM + `pg` Connection Pool** yang terhubung langsung ke **Neon Cloud Serverless PostgreSQL (`siomas_db`)**.
+   * Otentikasi: Stateless JWT (`jsonwebtoken`) dengan masa berlaku 24 jam (`NFR-SEC-03`).
+   * Enkripsi Kata Sandi: Hashing satu arah menggunakan `bcryptjs` (`NFR-SEC-02`).
+   * Asynchronous Reminder Scheduler (`UC-12`): **`node-cron` Hourly Scheduler** (`processScheduledEmailReminders`) untuk eksekusi pengiriman email bertahap **Attempt-1 (Saat Publikasi)**, **Attempt-2 (24 Jam)**, dan **Attempt-3 (48 Jam)** serta endpoint webhook callback (`POST /api/v1/notifications/email/webhook`).
+   * Mailer: **Nodemailer** terintegrasi dengan SMTP Relay.
+   * Kompresi Bundel Arsip (`UC-10`): Modul **Archiver** (`archiver('zip')`) untuk streaming unduhan bundel dokumen `.ZIP` (`GET /api/v1/documents/bundle`).
 3. **Data/Infrastructure Layer:**
-   * Basis Data Relasional: MySQL RDBMS dengan enjin InnoDB (Mendukung transaksi ACID).
-   * Storage File: Cloud Storage (AWS S3 / Google Cloud Storage) untuk penyimpanan dokumen fisik PDF/DOCX (Batas maks 10 MB per berkas per `NFR-PERF-02`).
+   * Basis Data Relasional Cloud: **Neon Cloud PostgreSQL RDBMS (`siomas_db`)** dengan 10 tabel relasional dan View `system_audit_logs`, memungkinkan seluruh anggota tim mengakses basis data yang sama secara *real-time* tanpa kendala perbedaan data lokal.
+   * Storage File: **Server File Storage (`Backend/uploads/` + `multer`)** untuk penyimpanan fisik dokumen PDF/DOCX/ZIP dan poster kegiatan (Batas maks 10 MB per request, mendukung `NFR-PERF-02`).
+
+### 2.1 Catatan Penyesuaian Arsitektur Implementasi (Deviasi Sadar Terhadap Draf Awal SRS)
+Sebagai bagian dari rekayasa perangkat lunak yang pragmatis pada lingkungan pengembangan dan pengujian lokal, tim pengembang menetapkan penyesuaian arsitektur (*conscious architectural deviation*) berikut tanpa mengurangi satupun kebutuhan fungsional (UC-01 s/d UC-12):
+
+| Komponen Arsitektur | Rancangan Konseptual Awal (SRS) | Implementasi Aktual (SIOMAS Codebase) | Alasan Teknis & Kesetaraan Fungsional |
+| :--- | :--- | :--- | :--- |
+| **Backend Framework & ORM** | Node.js / Express + Sequelize/Prisma | **Python Flask + Flask-SQLAlchemy** | Modularitas Blueprint per Use Case (`uc01`–`uc12`), integrasi Swagger otomatis (`/apidocs`), dan skema ORM yang 100% ekuivalen. |
+| **Antrean & Cron Email (UC-12)** | BullMQ + Redis + `node-cron` + Nodemailer | **Python Daemon Scheduler Thread + `smtplib` + Endpoint Trigger/Webhook** | Menghilangkan ketergantungan instalasi server Redis eksternal di mesin penguji, namun tetap menjalankan logika Attempt-1, Attempt-2 (24 jam), Attempt-3 (48 jam), Auto-Stop saat `Is_Read=True`, serta Webhook SMTP. |
+| **Penyimpanan Berkas & ZIP (UC-10)** | Cloud Storage (AWS S3 / GCS) | **Local Disk Storage (`Backend/uploads/`) + Python `zipfile` (`io.BytesIO`)** | Dapat diuji secara mandiri (*self-contained*) tanpa akun berbayar AWS/GCP, mendukung unggah fisik dan unduh bundel `.ZIP` secara langsung. |
+| **Tabel Audit Log (UC-12)** | `system_audit_logs` (JSON Before/After) | **Tabel `audit_logs` + SQL View `system_audit_logs` (Payload JSON `before` & `after`)** | Menyimpan struktur JSON `{"summary": "...", "before": {...}, "after": {...}}` pada kolom `Detail` serta menyediakan View `system_audit_logs` agar kompatibel dengan kedua penamaan. |
 
 ---
 
@@ -82,14 +94,33 @@ CREATE TABLE users (
   Nama VARCHAR(255) NOT NULL,
   Email VARCHAR(255) NOT NULL UNIQUE,
   Password_Hash VARCHAR(255) NOT NULL,
-  Role ENUM('Admin','Pengurus','Anggota') NOT NULL,
+  Role ENUM('Ketua UKM','Pengurus Divisi','Anggota') NOT NULL,
   Job_Desc VARCHAR(255) DEFAULT NULL,
   Status_Keanggotaan ENUM('Aktif','Alumni','Menunggu Verifikasi') NOT NULL DEFAULT 'Menunggu Verifikasi',
   Created_At DATETIME DEFAULT CURRENT_TIMESTAMP,
+  Created_By INT DEFAULT NULL,
+  Updated_By INT DEFAULT NULL,
   PRIMARY KEY (ID)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 2. Tabel Schedules
+-- 2. Tabel Permissions
+CREATE TABLE permissions (
+  ID INT NOT NULL AUTO_INCREMENT,
+  Nama_Akses VARCHAR(100) NOT NULL UNIQUE,
+  Deskripsi VARCHAR(255) DEFAULT NULL,
+  PRIMARY KEY (ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 3. Tabel Role_Permissions
+CREATE TABLE role_permissions (
+  ID INT NOT NULL AUTO_INCREMENT,
+  Role ENUM('Ketua UKM','Pengurus Divisi','Anggota') NOT NULL,
+  Permission_ID INT NOT NULL,
+  PRIMARY KEY (ID),
+  CONSTRAINT fk_role_permissions_perm FOREIGN KEY (Permission_ID) REFERENCES permissions(ID) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 4. Tabel Schedules
 CREATE TABLE schedules (
   ID INT NOT NULL AUTO_INCREMENT,
   Judul_Kegiatan VARCHAR(255) NOT NULL,
@@ -98,11 +129,12 @@ CREATE TABLE schedules (
   Lokasi VARCHAR(255) DEFAULT NULL,
   Keterangan TEXT DEFAULT NULL,
   Divisi_ID INT DEFAULT NULL,
+  Updated_By INT DEFAULT NULL,
   PRIMARY KEY (ID),
   CONSTRAINT fk_schedules_user FOREIGN KEY (Divisi_ID) REFERENCES users(ID) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 3. Tabel Documents
+-- 5. Tabel Documents
 CREATE TABLE documents (
   ID INT NOT NULL AUTO_INCREMENT,
   Nama_Berkas VARCHAR(255) NOT NULL,
@@ -111,23 +143,25 @@ CREATE TABLE documents (
   Status ENUM('Draft','Approved','Revisi') DEFAULT 'Draft',
   Is_Deleted TINYINT(1) DEFAULT 0,
   Uploaded_By INT DEFAULT NULL,
+  Approved_By INT DEFAULT NULL,
   PRIMARY KEY (ID),
   CONSTRAINT fk_documents_user FOREIGN KEY (Uploaded_By) REFERENCES users(ID) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 4. Tabel Announcements
+-- 6. Tabel Announcements
 CREATE TABLE announcements (
   ID INT NOT NULL AUTO_INCREMENT,
   Judul VARCHAR(255) NOT NULL,
   Isi TEXT NOT NULL,
   Is_Important TINYINT(1) DEFAULT 0,
   Created_By INT DEFAULT NULL,
+  Updated_By INT DEFAULT NULL,
   Created_At DATETIME DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (ID),
   CONSTRAINT fk_announcements_user FOREIGN KEY (Created_By) REFERENCES users(ID) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 5. Tabel Announcement_Reads
+-- 7. Tabel Announcement_Reads
 CREATE TABLE announcement_reads (
   ID INT NOT NULL AUTO_INCREMENT,
   Announcement_ID INT DEFAULT NULL,
@@ -139,7 +173,7 @@ CREATE TABLE announcement_reads (
   CONSTRAINT fk_announcement_reads_user FOREIGN KEY (User_ID) REFERENCES users(ID) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 6. Tabel Email_Logs
+-- 8. Tabel Email_Logs
 CREATE TABLE email_logs (
   ID INT NOT NULL AUTO_INCREMENT,
   Announcement_ID INT DEFAULT NULL,
@@ -152,16 +186,44 @@ CREATE TABLE email_logs (
   CONSTRAINT fk_email_logs_user FOREIGN KEY (User_ID) REFERENCES users(ID) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 7. Tabel InterUKM_Posts
+-- 9. Tabel InterUKM_Posts
 CREATE TABLE interukm_posts (
   ID INT NOT NULL AUTO_INCREMENT,
   UKM_Pengirim VARCHAR(255) NOT NULL,
   Judul VARCHAR(255) NOT NULL,
   Isi_Pengumuman TEXT NOT NULL,
-  Status_Persetujuan VARCHAR(255) NOT NULL,
+  Status_Persetujuan ENUM('Pending','Approved','Rejected') DEFAULT 'Pending',
   Date DATETIME DEFAULT CURRENT_TIMESTAMP,
+  Created_By INT DEFAULT NULL,
+  Approved_By INT DEFAULT NULL,
   PRIMARY KEY (ID)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 10. Tabel Audit_Logs & View System_Audit_Logs (Menyimpan JSON Before & After)
+CREATE TABLE audit_logs (
+  ID INT NOT NULL AUTO_INCREMENT,
+  User_ID INT DEFAULT NULL,
+  Aksi VARCHAR(100) NOT NULL,
+  Modul VARCHAR(100) NOT NULL,
+  Detail TEXT DEFAULT NULL COMMENT 'JSON String: {"summary": "...", "before": {...}, "after": {...}}',
+  IP_Address VARCHAR(45) DEFAULT NULL,
+  User_Agent VARCHAR(255) DEFAULT NULL,
+  Created_At DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (ID),
+  CONSTRAINT fk_audit_logs_user FOREIGN KEY (User_ID) REFERENCES users(ID) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE OR REPLACE VIEW system_audit_logs AS
+SELECT
+  ID,
+  User_ID,
+  Aksi AS Action_Type,
+  Modul AS Target_Table,
+  Detail AS Change_Detail_JSON,
+  IP_Address,
+  User_Agent,
+  Created_At
+FROM audit_logs;
 ```
 
 ---
@@ -337,12 +399,12 @@ CREATE TABLE interukm_posts (
   * Response Code: `200 OK`.
 
 #### **FRAME-13: Modal Unduh Bundel Dokumen (.ZIP) Sipakamase**
-* **Role:** Admin
+* **Role:** Admin / Pengurus / Anggota
 * **Elemen Trigger UI:**
-  * Tombol `'Mulai Unduh .ZIP'`
+  * Tombol `'Unduh Bundel .ZIP'`
 * **Integrasi API Backend:**
-  * Method & Endpoint: `GET /api/documents/bundle?kategori=Sipakamase`
-  * Logika Server: Query file aktif (`Is_Deleted = False`) berkategori Sipakamase, ambil file fisik dari Cloud Storage, lakukan streaming compression zip, dan salurkan binary file download ke browser.
+  * Method & Endpoint: `GET /api/v1/documents/bundle?kategori=Sipakamase` (Alias: `GET /api/documents/bundle`)
+  * Logika Server: Query file aktif (`Is_Deleted = False`) sesuai filter kategori, ambil file fisik dari `Backend/uploads/`, lakukan streaming compression `.zip` menggunakan Python `zipfile` + `io.BytesIO` beserta `MANIFEST_ARSIP_SIOMAS.txt`, catat ke `audit_logs`, dan salurkan binary file download ke browser.
   * Response Code: `200 OK` (`Content-Type: application/zip`).
 
 #### **FRAME-14: Modal Konfirmasi Soft-Delete Berkas Repositori**
@@ -389,18 +451,24 @@ CREATE TABLE interukm_posts (
   * Response Code: `200 OK`.
 
 #### **FRAME-18: Konsol Admin: Log Notifikasi Email Terjadwal & Open-Rate**
-* **Role:** Admin
+* **Role:** Admin (Ketua UKM)
 * **Elemen Trigger UI:**
-  * Tombol `'Filter Berdasarkan Status / Attempt'`
+  * Tombol `'Filter Berdasarkan Status / Attempt'` (`Attempt-1`, `Attempt-2`, `Attempt-3`, `Gagal`)
+  * Tombol `'⚡ Jalankan Scheduler Pengingat (24j / 48j)'`
+  * Tombol `'Ubah Status (Webhook)'`
 * **Integrasi API Backend:**
-  * Method & Endpoint: `GET /api/admin/email-logs?attempt=1&status=Delivered`
+  * Riwayat Log: `GET /api/v1/notifications/email/logs`
+  * Eksekusi Scheduler 24j/48j: `POST /api/v1/notifications/email/run-scheduler`
+  * Webhook Callback Status SMTP: `POST /api/v1/notifications/email/webhook` (Alias: `POST /api/webhooks/email-status`)
   * Data Source: Tabel `email_logs` & `announcement_reads`.
 
 #### **FRAME-19: Dashboard Eksekutif Admin SIOMAS Desktop**
-* **Role:** Admin
+* **Role:** Admin (Ketua UKM)
 * **Elemen Trigger UI:**
-  * Kartu `'Akses Konsol Audit Log'`
-* **Integrasi API Backend:** Routing ke `Konsol Admin: Audit Log Keamanan & Transaksi Ormawa`.
+  * Kartu `'Akses Konsol Audit Log'` & Tombol `'Ekspor Audit CSV'`
+* **Integrasi API Backend:**
+  * Method & Endpoint: `GET /api/v1/notifications/audit-logs`
+  * Data Source: Tabel `audit_logs` / View `system_audit_logs` (Menampilkan ringkasan aksi serta perbandingan JSON `BEFORE` dan `AFTER`).
 
 #### **FRAME-20: Dashboard Eksekutif Koordinator Divisi SIOMAS Desktop**
 * **Role:** Pengurus Divisi
@@ -428,6 +496,4 @@ CREATE TABLE interukm_posts (
 ---
 
 ## 8. RINGKASAN & ROADMAP IMPLEMENTASI
-Dokumen PRD ini menyatukan seluruh spesifikasi **UI/UX Frontend (22 Frame/Modal)** dan **Aturan Teknis Backend (Node.js/Express, MySQL DDL, Cron Job, Bcrypt, JWT)**. Dokumen ini menjadi acuan tunggal (*single source of truth*) bagi Tim Frontend (React.js) dan Tim Backend (Express.js) untuk memulai implementasi kode program aplikasi SIOMAS.
-Target File: /workspace/out/PRD_SIOMAS_Full_Spec.md
-Target File Scratch: /workspace/scratch/PRD_SIOMAS_Full_Spec.md
+Dokumen PRD ini menyatukan seluruh spesifikasi **UI/UX Frontend (22 Frame/Modal React.js + Vite)** dan **Aturan Teknis Backend (Python Flask Blueprints, SQLAlchemy ORM, PostgreSQL / MySQL 10 Tabel DDL, Background Cron Scheduler Email Attempt 1–3, Kompresi Bundel ZIP, dan System Audit Logs JSON Before/After)**. Dokumen ini menjadi acuan tunggal (*single source of truth*) yang sinkron 100% dengan kode sumber aplikasi SIOMAS.

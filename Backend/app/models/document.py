@@ -1,5 +1,6 @@
 from app.extensions import db
 
+
 class Document(db.Model):
     __tablename__ = 'documents'
 
@@ -16,7 +17,17 @@ class Document(db.Model):
     approver = db.relationship('User', foreign_keys=[Approved_By], backref='approved_documents')
 
     def __init__(self, **kwargs):
+        if 'File_URL' in kwargs and 'Path_File' not in kwargs:
+            kwargs['Path_File'] = kwargs.pop('File_URL')
         super().__init__(**kwargs)
+
+    @property
+    def File_URL(self):
+        return self.Path_File
+
+    @File_URL.setter
+    def File_URL(self, value):
+        self.Path_File = value
 
     def to_dict(self):
         catatan_revisi = None
@@ -27,13 +38,18 @@ class Document(db.Model):
                     AuditLog.query
                     .filter(
                         AuditLog.Aksi.in_(['VALIDATE_LPJ', 'VERIFY_SIPAKAMASE']),
-                        AuditLog.Detail.ilike(f"%'{self.Nama_Berkas}'%")
+                        AuditLog.Detail.ilike(f"%{self.Nama_Berkas}%")
                     )
                     .order_by(AuditLog.ID.desc())
                     .first()
                 )
-                if latest_log and latest_log.Detail and 'Catatan:' in latest_log.Detail:
-                    catatan_revisi = latest_log.Detail.split('Catatan:', 1)[1].strip()
+                if latest_log:
+                    parsed = latest_log._parse_detail()
+                    after_obj = parsed.get('after')
+                    if isinstance(after_obj, dict) and after_obj.get('catatan'):
+                        catatan_revisi = after_obj.get('catatan')
+                    elif 'Catatan:' in parsed.get('summary', ''):
+                        catatan_revisi = parsed['summary'].split('Catatan:', 1)[1].strip()
             except Exception:
                 catatan_revisi = None
 

@@ -60,6 +60,13 @@ def list_announcements():
         Announcement.Created_At.desc()
     ).all()
 
+    actor_ukm = user.get_ukm() if user else None
+    if actor_ukm:
+        announcements = [
+            a for a in announcements
+            if not a.creator or a.creator.get_ukm() in (None, actor_ukm)
+        ]
+
     result = []
     for a in announcements:
         item = a.to_dict(current_user_id=user.ID)
@@ -90,13 +97,22 @@ def get_unread_count():
         description: Jumlah unread berhasil dihitung
     """
     user = get_current_user()
-    total_announcements = Announcement.query.count()
+    actor_ukm = user.get_ukm() if user else None
+    all_anns = Announcement.query.all()
+    if actor_ukm:
+        all_anns = [a for a in all_anns if not a.creator or a.creator.get_ukm() in (None, actor_ukm)]
+    ann_ids = [a.ID for a in all_anns]
+    total_announcements = len(ann_ids)
 
     read_count = (
         AnnouncementRead.query
-        .filter_by(User_ID=user.ID, Is_Read=True)
+        .filter(
+            AnnouncementRead.User_ID == user.ID,
+            AnnouncementRead.Is_Read == True,
+            AnnouncementRead.Announcement_ID.in_(ann_ids) if ann_ids else False
+        )
         .count()
-    )
+    ) if ann_ids else 0
 
     unread_count = max(0, total_announcements - read_count)
 

@@ -9,6 +9,15 @@ from app.utils.response import success_response, error_response
 
 schedules_bp = Blueprint('uc04_schedules', __name__, url_prefix='/api/v1/schedules')
 
+
+def _get_schedule_ukm(schedule: Schedule):
+    if schedule.updater and schedule.updater.get_ukm():
+        return schedule.updater.get_ukm()
+    if schedule.division_pic and schedule.division_pic.get_ukm():
+        return schedule.division_pic.get_ukm()
+    return None
+
+
 @schedules_bp.route('', methods=['GET'])
 @permission_required('lihat_jadwal')
 def list_schedules():
@@ -71,6 +80,13 @@ def list_schedules():
         )
 
     schedules = query.order_by(Schedule.Waktu.asc()).all()
+    user = get_current_user()
+    actor_ukm = user.get_ukm() if user else None
+    if actor_ukm:
+        schedules = [
+            s for s in schedules
+            if _get_schedule_ukm(s) in (None, actor_ukm)
+        ]
 
     return success_response(
         data=[s.to_dict() for s in schedules],
@@ -101,9 +117,18 @@ def get_schedule_detail(schedule_id):
       404:
         description: Jadwal tidak ditemukan
     """
+    user = get_current_user()
     schedule = db.session.get(Schedule, schedule_id)
     if not schedule:
         return error_response("Jadwal kegiatan tidak ditemukan", 404)
+
+    actor_ukm = user.get_ukm() if user else None
+    sched_ukm = _get_schedule_ukm(schedule)
+    if actor_ukm and sched_ukm and sched_ukm != actor_ukm:
+        return error_response(
+            f"Akses ditolak: Jadwal ini milik {sched_ukm}, Anda hanya dapat menghapus jadwal {actor_ukm}.",
+            403
+        )
 
     return success_response(
         data=schedule.to_dict(),
@@ -192,7 +217,7 @@ def create_schedule():
         Waktu=waktu_obj,
         Lokasi=lokasi if lokasi else None,
         Keterangan=keterangan if keterangan else None,
-        Divisi_ID=divisi_id if divisi_id else None,
+        Divisi_ID=divisi_id if divisi_id else user.ID,
         Updated_By=user.ID
     )
     db.session.add(schedule)
@@ -250,6 +275,14 @@ def update_schedule(schedule_id):
     schedule = db.session.get(Schedule, schedule_id)
     if not schedule:
         return error_response("Jadwal kegiatan tidak ditemukan", 404)
+
+    actor_ukm = user.get_ukm() if user else None
+    sched_ukm = _get_schedule_ukm(schedule)
+    if actor_ukm and sched_ukm and sched_ukm != actor_ukm:
+        return error_response(
+            f"Akses ditolak: Jadwal ini milik {sched_ukm}, Anda hanya dapat mengubah jadwal {actor_ukm}.",
+            403
+        )
 
     data = request.get_json() or {}
 
@@ -309,9 +342,18 @@ def delete_schedule(schedule_id):
       404:
         description: Jadwal tidak ditemukan
     """
+    user = get_current_user()
     schedule = db.session.get(Schedule, schedule_id)
     if not schedule:
         return error_response("Jadwal kegiatan tidak ditemukan", 404)
+
+    actor_ukm = user.get_ukm() if user else None
+    sched_ukm = _get_schedule_ukm(schedule)
+    if actor_ukm and sched_ukm and sched_ukm != actor_ukm:
+        return error_response(
+            f"Akses ditolak: Jadwal ini milik {sched_ukm}, Anda hanya dapat menghapus jadwal {actor_ukm}.",
+            403
+        )
 
     title = schedule.Judul_Kegiatan
     db.session.delete(schedule)

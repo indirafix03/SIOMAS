@@ -77,6 +77,9 @@ def create_interukm_post():
         judul = (data.get('judul') or '').strip()
         isi = (data.get('isi_pengumuman') or '').strip()
 
+    if not ukm or ukm == 'SIOMAS':
+        ukm = user.get_ukm() or ukm or 'SIOMAS'
+
     if not ukm or not judul or not isi:
         return error_response("UKM pengirim, judul, dan isi pengumuman wajib diisi", 400)
 
@@ -128,13 +131,23 @@ def create_interukm_post():
 @permission_required('setujui_interukm')
 def list_pending_posts():
     """
-    Daftar Antrean Persetujuan Inter-UKM
+    Daftar Antrean Persetujuan Inter-UKM (Terisolasi Sesuai UKM Ketua)
     """
     user = get_current_user()
     uid = user.ID if user else None
+    actor_ukm = user.get_ukm() if user else None
+
     pending_posts = InterUKMPost.query.filter_by(
         Status_Persetujuan='Pending'
     ).order_by(InterUKMPost.Date.asc()).all()
+
+    if actor_ukm:
+        filtered = []
+        for p in pending_posts:
+            creator_ukm = p.creator.get_ukm() if p.creator else None
+            if p.UKM_Pengirim == actor_ukm or creator_ukm == actor_ukm:
+                filtered.append(p)
+        pending_posts = filtered
 
     return success_response(
         data=[p.to_dict(current_user_id=uid) for p in pending_posts],
@@ -147,7 +160,7 @@ def list_pending_posts():
 @permission_required('setujui_interukm')
 def approve_interukm_post(post_id):
     """
-    Setujui Postingan Inter-UKM
+    Setujui Postingan Inter-UKM (Hanya Postingan dari UKM Ketua Sendiri)
     """
     user = get_current_user()
     if not user:
@@ -155,6 +168,14 @@ def approve_interukm_post(post_id):
     post = db.session.get(InterUKMPost, post_id)
     if not post:
         return error_response("Postingan Inter-UKM tidak ditemukan", 404)
+
+    actor_ukm = user.get_ukm()
+    creator_ukm = post.creator.get_ukm() if post.creator else None
+    if actor_ukm and post.UKM_Pengirim != actor_ukm and creator_ukm != actor_ukm:
+        return error_response(
+            f"Akses ditolak: Anda adalah Ketua {actor_ukm} dan tidak dapat menyetujui publikasi dari {post.UKM_Pengirim}.",
+            403
+        )
 
     post.Status_Persetujuan = 'Approved'
     post.Approved_By = user.ID
@@ -172,7 +193,7 @@ def approve_interukm_post(post_id):
 @permission_required('setujui_interukm')
 def reject_interukm_post(post_id):
     """
-    Tolak Postingan Inter-UKM
+    Tolak Postingan Inter-UKM (Hanya Postingan dari UKM Ketua Sendiri)
     """
     user = get_current_user()
     if not user:
@@ -180,6 +201,14 @@ def reject_interukm_post(post_id):
     post = db.session.get(InterUKMPost, post_id)
     if not post:
         return error_response("Postingan Inter-UKM tidak ditemukan", 404)
+
+    actor_ukm = user.get_ukm()
+    creator_ukm = post.creator.get_ukm() if post.creator else None
+    if actor_ukm and post.UKM_Pengirim != actor_ukm and creator_ukm != actor_ukm:
+        return error_response(
+            f"Akses ditolak: Anda adalah Ketua {actor_ukm} dan tidak dapat menolak publikasi dari {post.UKM_Pengirim}.",
+            403
+        )
 
     data = request.get_json() or {}
     alasan = data.get('alasan_penolakan', '').strip()

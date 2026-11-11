@@ -195,9 +195,9 @@ export default function PDUnggahLPJ({ showToast }) {
       )}
 
       {/* Two-column layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '24px', alignItems: 'start' }}>
+      <div className="responsive-hub-grid">
         {/* Left: Main Form */}
-        <div>
+        <div style={{ minWidth: 0 }}>
           <div className="portal-card" style={{ padding: '28px', marginBottom: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>

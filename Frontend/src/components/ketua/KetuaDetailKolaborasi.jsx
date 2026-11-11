@@ -194,11 +194,11 @@ export default function KetuaDetailKolaborasi({ post, onBack, onStatusChange, sh
         <p style={{ fontSize: '13.5px', color: '#64748B' }}>Dipublikasikan {data.org} • Terbuka untuk seluruh organisasi</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '20px', alignItems: 'start' }}>
+      <div className="responsive-hub-grid">
         {/* Main Content */}
-        <div className="portal-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="portal-card" style={{ padding: 0, overflow: 'hidden', minWidth: 0 }}>
           {/* Org Header */}
-          <div style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9' }}>
+          <div style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid #F1F5F9' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div style={{ width: '40px', height: '40px', background: data.orgColor || '#4F46E5', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '14px' }}>
                 {data.orgInitial || 'SI'}

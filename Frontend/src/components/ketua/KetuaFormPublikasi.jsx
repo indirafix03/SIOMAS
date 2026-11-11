@@ -85,10 +85,10 @@ export default function KetuaFormPublikasi({ onBack, showToast }) {
         <p className="page-subtitle">Lengkapi informasi kegiatan untuk ditinjau sebelum disiarkan ke seluruh organisasi kampus.</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '20px', alignItems: 'start' }}>
+      <div className="responsive-hub-grid">
         {/* Form */}
-        <div className="portal-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+        <div className="portal-card" style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '6px' }}>
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: 700 }}>Informasi Publikasi</h3>
               <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>Data ini akan tampil pada feed Hub Inter-UKM.</p>

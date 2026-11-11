@@ -79,12 +79,30 @@ def update_my_profile():
         return error_response("Pengguna tidak ditemukan", 404)
 
     data = request.get_json() or {}
+    before_state = user.to_dict()
 
     if 'nama' in data and data['nama'].strip():
         user.Nama = data['nama'].strip()
 
+    new_ukm = data.get('ukm', '').strip() if 'ukm' in data else user.get_ukm()
+    new_divisi = data.get('divisi', '').strip() if 'divisi' in data else None
+
     if 'job_desc' in data:
-        user.Job_Desc = data['job_desc'].strip() if data['job_desc'] else None
+        raw_jd = data['job_desc'].strip() if data['job_desc'] else ''
+        if new_ukm and raw_jd and not raw_jd.lower().startswith(new_ukm.lower()):
+            user.Job_Desc = f"{new_ukm} - {raw_jd}"
+        elif new_ukm and not raw_jd:
+            user.Job_Desc = new_ukm
+        else:
+            user.Job_Desc = raw_jd or None
+    elif 'ukm' in data or 'divisi' in data:
+        div_part = new_divisi if new_divisi is not None else user.get_divisi()
+        if new_ukm and div_part:
+            user.Job_Desc = f"{new_ukm} - {div_part}"
+        elif new_ukm:
+            user.Job_Desc = new_ukm
+        elif div_part:
+            user.Job_Desc = div_part
 
     # Handle password change
     old_password = data.get('old_password')
@@ -130,6 +148,8 @@ def get_jobdesk_list():
       200:
         description: Daftar jobdesk berhasil diambil
     """
+    current_user = get_current_user()
+    actor_ukm = current_user.get_ukm() if current_user else None
     role_filter = request.args.get('role')
 
     query = User.query.filter(User.Status_Keanggotaan == 'Aktif')
@@ -140,6 +160,8 @@ def get_jobdesk_list():
         query = query.filter(User.Role.in_(['Ketua', 'Pengurus']))
 
     members = query.order_by(User.Role.asc(), User.Nama.asc()).all()
+    if actor_ukm:
+        members = [m for m in members if m.get_ukm() == actor_ukm]
 
     jobdesk_list = [
         {
@@ -147,6 +169,8 @@ def get_jobdesk_list():
             "nama": m.Nama,
             "email": m.Email,
             "role": m.Role,
+            "ukm": m.get_ukm(),
+            "divisi": m.get_divisi(),
             "job_desc": m.Job_Desc or "Belum ditentukan"
         }
         for m in members

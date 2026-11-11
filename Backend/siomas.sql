@@ -199,8 +199,46 @@ CREATE TABLE `users` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
+-- Struktur dari tabel `audit_logs` (Tabel ke-10: System Audit Logs)
+-- Detail menyimpan JSON terstruktur {"summary": "...", "before": {...}, "after": {...}}
+--
+
+CREATE TABLE `audit_logs` (
+  `ID` int(11) NOT NULL,
+  `User_ID` int(11) DEFAULT NULL,
+  `Aksi` varchar(100) NOT NULL,
+  `Modul` varchar(100) NOT NULL,
+  `Detail` text DEFAULT NULL,
+  `IP_Address` varchar(45) DEFAULT NULL,
+  `User_Agent` varchar(255) DEFAULT NULL,
+  `Created_At` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- View Kompatibilitas `system_audit_logs` (Alias SRS Tabel #10)
+--
+CREATE OR REPLACE VIEW `system_audit_logs` AS
+SELECT
+  `ID`,
+  `User_ID`,
+  `Aksi` AS `Action_Type`,
+  `Modul` AS `Target_Table`,
+  `Detail` AS `Change_Detail_JSON`,
+  `IP_Address`,
+  `User_Agent`,
+  `Created_At`
+FROM `audit_logs`;
+
+--
 -- Indexes for dumped tables
 --
+
+--
+-- Indeks untuk tabel `audit_logs`
+--
+ALTER TABLE `audit_logs`
+  ADD PRIMARY KEY (`ID`),
+  ADD KEY `User_ID` (`User_ID`);
 
 --
 -- Indeks untuk tabel `announcements`
@@ -278,6 +316,12 @@ ALTER TABLE `users`
 --
 
 --
+-- AUTO_INCREMENT untuk tabel `audit_logs`
+--
+ALTER TABLE `audit_logs`
+  MODIFY `ID` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT untuk tabel `announcements`
 --
 ALTER TABLE `announcements`
@@ -334,6 +378,12 @@ ALTER TABLE `users`
 --
 -- Ketidakleluasaan untuk tabel pelimpahan (Dumped Tables)
 --
+
+--
+-- Ketidakleluasaan untuk tabel `audit_logs`
+--
+ALTER TABLE `audit_logs`
+  ADD CONSTRAINT `audit_logs_ibfk_1` FOREIGN KEY (`User_ID`) REFERENCES `users` (`ID`) ON DELETE SET NULL;
 
 --
 -- Ketidakleluasaan untuk tabel `announcements`

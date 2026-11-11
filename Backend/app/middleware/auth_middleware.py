@@ -7,6 +7,7 @@ from app.models.permission import Permission
 from app.models.role_permission import RolePermission
 from app.utils.response import error_response
 
+
 def get_current_user():
     """
     Retrieve currently authenticated user and attach to flask.g
@@ -30,6 +31,8 @@ def get_current_user():
 def get_user_permissions(user: User):
     """
     Retrieve all permission keys (Nama_Akses) assigned to the user's role.
+    Supports role alias ('Admin' <-> 'Ketua') and permission aliases
+    ('baca_pengumuman' -> 'lihat_dokumen', 'unggah_dokumen' -> 'unggah_lpj', etc.).
     """
     if not user:
         return set()
@@ -37,15 +40,26 @@ def get_user_permissions(user: User):
     if hasattr(g, 'user_permissions_id') and g.user_permissions_id == user.ID:
         return g.user_permissions
 
-    # Query role_permissions joined with permissions
+    role_lookup = 'Ketua' if user.Role in ('Admin', 'Ketua UKM', 'Ketua') else user.Role
+
     results = (
         db.session.query(Permission.Nama_Akses)
         .join(RolePermission, RolePermission.Permission_ID == Permission.ID)
-        .filter(RolePermission.Role_Name == user.Role)
+        .filter(RolePermission.Role_Name == role_lookup)
         .all()
     )
 
     permissions = {r[0] for r in results}
+
+    # Add semantic aliases so all blueprints work consistently
+    if 'baca_pengumuman' in permissions or 'lihat_jadwal' in permissions:
+        permissions.add('lihat_dokumen')
+    if 'unggah_dokumen' in permissions:
+        permissions.add('unggah_lpj')
+        permissions.add('kelola_dokumen')
+    if 'setujui_dokumen' in permissions:
+        permissions.add('kelola_dokumen')
+
     g.user_permissions = permissions
     g.user_permissions_id = user.ID
     return permissions
@@ -59,7 +73,6 @@ def permission_required(permission_name: str):
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):
-            # Verify JWT exists in the request
             verify_jwt_in_request()
             user = get_current_user()
 
@@ -69,7 +82,6 @@ def permission_required(permission_name: str):
             if user.Status_Keanggotaan != 'Aktif':
                 return error_response("Akun Anda berstatus non-aktif/alumni", 403)
 
-            # Check permissions
             user_permissions = get_user_permissions(user)
             if permission_name not in user_permissions:
                 return error_response(
@@ -86,8 +98,14 @@ def permission_required(permission_name: str):
 
 def role_required(*allowed_roles):
     """
-    Role-based Decorator: Ensures user has one of the specified roles (e.g. 'Admin').
+    Role-based Decorator: Ensures user has one of the specified roles (e.g. 'Admin' / 'Ketua UKM').
     """
+    expanded_roles = set(allowed_roles)
+    if expanded_roles & {'Admin', 'Ketua UKM', 'Ketua'}:
+        expanded_roles.update({'Admin', 'Ketua UKM', 'Ketua'})
+    if expanded_roles & {'Pengurus', 'Pengurus Divisi'}:
+        expanded_roles.update({'Pengurus', 'Pengurus Divisi'})
+
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):
@@ -100,7 +118,7 @@ def role_required(*allowed_roles):
             if user.Status_Keanggotaan != 'Aktif':
                 return error_response("Akun Anda berstatus non-aktif/alumni", 403)
 
-            if user.Role not in allowed_roles:
+            if user.Role not in expanded_roles:
                 return error_response(
                     f"Akses ditolak: Fitur ini hanya untuk role {', '.join(allowed_roles)}",
                     403,

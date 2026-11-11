@@ -1,44 +1,45 @@
-from flask import request, g
-from flask_jwt_extended import get_jwt_identity
+import json
+from flask import request
+from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 from app.extensions import db
 from app.models.audit_log import AuditLog
 
-def log_audit(aksi: str, modul: str, detail: str = None, user_id: int = None):
+
+def log_audit(aksi, modul, detail=None, user_id=None, before=None, after=None):
     """
-    Record an action into the audit_logs table.
-    Safely captures user, IP address, and user agent.
+    Mencatat aktivitas penting pengguna ke dalam tabel audit_logs / system_audit_logs
+    dengan format terstruktur JSON (menyimpan summary, data `before`, dan data `after`
+    sesuai spesifikasi SRS Sequence & Skema Tabel #10).
     """
     try:
         if user_id is None:
-            if hasattr(g, 'current_user') and g.current_user:
-                user_id = g.current_user.ID
-            else:
-                try:
-                    identity = get_jwt_identity()
-                    if identity:
-                        user_id = int(identity)
-                except Exception:
-                    user_id = None
+            try:
+                verify_jwt_in_request(optional=True)
+                identity = get_jwt_identity()
+                if identity is not None:
+                    user_id = int(identity)
+            except Exception:
+                user_id = None
 
-        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
-        if ip_address and ',' in ip_address:
-            ip_address = ip_address.split(',')[0].strip()
+        ip_addr = request.remote_addr if request else None
+        user_agent = request.headers.get('User-Agent', '')[:255] if request else None
 
-        user_agent = request.user_agent.string if request.user_agent else None
-        if user_agent and len(user_agent) > 255:
-            user_agent = user_agent[:255]
+        payload = {
+            "summary": detail or f"{aksi} pada modul {modul}",
+            "before": before,
+            "after": after
+        }
+        serialized_detail = json.dumps(payload, ensure_ascii=False)
 
-        audit_entry = AuditLog(
+        audit = AuditLog(
             User_ID=user_id,
             Aksi=aksi,
             Modul=modul,
-            Detail=detail,
-            IP_Address=ip_address,
+            Detail=serialized_detail,
+            IP_Address=ip_addr,
             User_Agent=user_agent
         )
-        db.session.add(audit_entry)
+        db.session.add(audit)
         db.session.commit()
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        # Log to stderr without breaking the current operation
-        print(f"[AUDIT LOG ERROR] Failed to record audit log: {str(e)}")

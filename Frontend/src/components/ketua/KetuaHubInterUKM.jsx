@@ -304,21 +304,15 @@ export default function KetuaHubInterUKM({ onNavigate, onSelectPost, showToast }
       )}
 
       {/* Hero Banner */}
-      <div style={{
-        background: 'linear-gradient(135deg, #0F172A 0%, #1E1B4B 100%)',
-        borderRadius: '16px', padding: '28px 32px', marginBottom: '24px',
-        position: 'relative', overflow: 'hidden',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-      }}>
-        <div style={{ position: 'absolute', top: '-40px', right: '40px', width: '160px', height: '160px', borderRadius: '50%', background: 'rgba(99,102,241,0.3)', filter: 'blur(40px)' }} />
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <span style={{ background: 'rgba(99,102,241,0.3)', color: '#A5B4FC', fontSize: '11px', fontWeight: 700, padding: '4px 12px', borderRadius: '999px', letterSpacing: '0.06em' }}>KOLABORASI KAMPUS</span>
-          <h1 style={{ fontSize: '32px', fontWeight: 700, color: '#fff', marginTop: '10px', marginBottom: '6px' }}>Hub Inter-UKM</h1>
-          <p style={{ fontSize: '13.5px', color: '#94A3B8' }}>Temukan peluang, bangun koneksi, dan ciptakan dampak bersama organisasi mahasiswa se-kampus.</p>
+      <div className="hub-hero-banner">
+        <div className="hub-hero-text">
+          <span className="hub-hero-tag">KOLABORASI KAMPUS</span>
+          <h1 className="hub-hero-title">Hub Inter-UKM</h1>
+          <p className="hub-hero-desc">Temukan peluang, bangun koneksi, dan ciptakan dampak bersama organisasi mahasiswa se-kampus.</p>
         </div>
         <button
-          className="btn-primary"
-          style={{ margin: 0, width: 'auto', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', position: 'relative', zIndex: 1 }}
+          className="btn-primary-glow"
+          style={{ margin: 0, width: 'auto', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', position: 'relative', zIndex: 2 }}
           onClick={() => onNavigate('k-form-publikasi')}
         >
           + Publikasikan ke Hub
@@ -326,20 +320,20 @@ export default function KetuaHubInterUKM({ onNavigate, onSelectPost, showToast }
       </div>
 
       {/* Main Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '20px', alignItems: 'start' }}>
+      <div className="responsive-hub-grid">
         {/* Feed */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '18px' }}>
             <div>
-              <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#0F172A' }}>Aktivitas Terbaru</h2>
-              <p style={{ fontSize: '13px', color: '#94A3B8' }}>Kabar dari organisasi di seluruh kampus</p>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#0F172A', margin: 0 }}>Aktivitas Terbaru</h2>
+              <p style={{ fontSize: '13px', color: '#64748B', marginTop: '4px', lineHeight: 1.5 }}>Kabar dari organisasi di seluruh kampus</p>
             </div>
             {posts.length > 0 && (
               <button className="portal-link-btn" onClick={loadHubData}>Segarkan <ChevronRight size={14} /></button>
             )}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {loading ? (
               <div className="portal-card" style={{ textAlign: 'center', padding: '40px 20px', color: '#94A3B8' }}>
                 Memuat publikasi Hub Inter-UKM...
@@ -347,7 +341,7 @@ export default function KetuaHubInterUKM({ onNavigate, onSelectPost, showToast }
             ) : posts.length === 0 ? (
               <div className="portal-card" style={{ textAlign: 'center', padding: '48px 24px', color: '#64748B' }}>
                 <div style={{ fontSize: '15px', fontWeight: 600, color: '#0F172A', marginBottom: '6px' }}>Belum ada publikasi kolaborasi Inter-UKM</div>
-                <p style={{ fontSize: '13px', color: '#94A3B8', marginBottom: '16px' }}>
+                <p style={{ fontSize: '13px', color: '#94A3B8', marginBottom: '16px', lineHeight: 1.55 }}>
                   Klik tombol <strong>+ Publikasikan ke Hub</strong> atau <strong>Buat Permintaan Kolaborasi</strong> untuk menambahkan publikasi pertama.
                 </p>
               </div>
@@ -355,72 +349,72 @@ export default function KetuaHubInterUKM({ onNavigate, onSelectPost, showToast }
               posts.map(post => (
                 <div key={post.id} className="portal-card" style={{ padding: 0, overflow: 'hidden' }}>
                   {/* Header */}
-                  <div style={{ padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: '36px', height: '36px', background: post.orgColor, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '13px', fontWeight: 700, flexShrink: 0 }}>
+                  <div style={{ padding: '18px 20px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                      <div style={{ width: '38px', height: '38px', background: post.orgColor, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '13px', fontWeight: 700, flexShrink: 0 }}>
                         {post.orgInitial}
                       </div>
-                      <div>
-                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A' }}>{post.org}</div>
-                        <div style={{ fontSize: '12px', color: '#94A3B8' }}>{post.waktu}</div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A', lineHeight: 1.35 }}>{post.org}</div>
+                        <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '2px' }}>{post.waktu}</div>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                       {post.status === 'pending' && (
                         <button
                           onClick={() => setVerifikasiPost(post)}
-                          style={{ background: '#FEF3C7', color: '#D97706', border: 'none', borderRadius: '8px', padding: '4px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 700, fontFamily: 'inherit' }}
+                          style={{ background: '#FEF3C7', color: '#D97706', border: 'none', borderRadius: '8px', padding: '5px 12px', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, fontFamily: 'inherit' }}
                         >
                           Verifikasi
                         </button>
                       )}
                       {post.status === 'approved' && (
-                        <span style={{ background: '#ECFDF5', color: '#059669', fontSize: '11px', fontWeight: 700, padding: '4px 12px', borderRadius: '8px' }}>Published</span>
+                        <span style={{ background: '#ECFDF5', color: '#059669', fontSize: '11.5px', fontWeight: 700, padding: '5px 12px', borderRadius: '8px' }}>Published</span>
                       )}
-                      <span style={{ background: post.status === 'pending' ? '#EEF2FF' : '#ECFDF5', color: post.status === 'pending' ? '#4F46E5' : '#059669', fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '6px' }}>
+                      <span style={{ background: post.status === 'pending' ? '#EEF2FF' : '#ECFDF5', color: post.status === 'pending' ? '#4F46E5' : '#059669', fontSize: '11.5px', fontWeight: 700, padding: '5px 12px', borderRadius: '8px' }}>
                         {post.kategori}
                       </span>
                     </div>
                   </div>
 
                   {/* Title */}
-                  <div style={{ padding: '0 16px 10px' }}>
-                    <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0F172A' }}>{post.judul}</h3>
+                  <div style={{ padding: '0 20px 12px' }}>
+                    <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#0F172A', lineHeight: 1.4, margin: 0 }}>{post.judul}</h3>
                   </div>
 
                   {/* Cover Image if uploaded */}
                   {post.img && (
-                    <div style={{ padding: '0 16px 12px' }}>
-                      <img src={post.img} alt={post.judul} style={{ width: '100%', maxHeight: '220px', objectFit: 'cover', borderRadius: '10px' }} />
+                    <div style={{ padding: '0 20px 14px' }}>
+                      <img src={post.img} alt={post.judul} style={{ width: '100%', maxHeight: '220px', objectFit: 'cover', borderRadius: '10px', display: 'block' }} />
                     </div>
                   )}
 
                   {/* Desc + actions */}
-                  <div style={{ padding: '12px 16px', borderTop: '1px solid #F1F5F9' }}>
-                    <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '12px' }}>{post.desc}</p>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', gap: '14px' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', color: '#64748B' }}>
-                          <Users size={14} /> {post.tertarik} tertarik
+                  <div style={{ padding: '16px 20px 18px', borderTop: '1px solid #F1F5F9' }}>
+                    <p style={{ fontSize: '13.5px', color: '#475569', lineHeight: 1.6, marginBottom: '16px', wordBreak: 'break-word' }}>{post.desc}</p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                      <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#64748B', fontWeight: 500 }}>
+                          <Users size={15} /> {post.tertarik} tertarik
                         </span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', color: '#64748B' }}>
-                          <Share2 size={14} /> Bagikan
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#64748B', fontWeight: 500 }}>
+                          <Share2 size={15} /> Bagikan
                         </span>
                       </div>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                         {post.status === 'pending' && (
                           <>
                             <button
                               type="button"
                               onClick={() => handleRejectPost(post)}
-                              style={{ background: '#FEE2E2', color: '#DC2626', border: '1px solid #FECACA', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontSize: '12.5px', fontWeight: 700, fontFamily: 'inherit' }}
+                              style={{ background: '#FEE2E2', color: '#DC2626', border: '1px solid #FECACA', borderRadius: '8px', padding: '7px 14px', cursor: 'pointer', fontSize: '12.5px', fontWeight: 700, fontFamily: 'inherit' }}
                             >
                               Tolak
                             </button>
                             <button
                               type="button"
                               onClick={() => handleApprovePost(post)}
-                              style={{ background: '#10B981', color: '#FFFFFF', border: 'none', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontSize: '12.5px', fontWeight: 700, fontFamily: 'inherit' }}
+                              style={{ background: '#10B981', color: '#FFFFFF', border: 'none', borderRadius: '8px', padding: '7px 14px', cursor: 'pointer', fontSize: '12.5px', fontWeight: 700, fontFamily: 'inherit' }}
                             >
                               ✓ Setujui & Siarkan
                             </button>
@@ -428,7 +422,7 @@ export default function KetuaHubInterUKM({ onNavigate, onSelectPost, showToast }
                         )}
                         <button
                           onClick={() => onSelectPost && onSelectPost(post)}
-                          style={{ background: 'none', border: '1.5px solid #E2E8F0', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: 'inherit' }}
+                          style={{ background: '#F8FAFC', border: '1.5px solid #E2E8F0', borderRadius: '8px', padding: '7px 16px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: 'inherit' }}
                         >
                           Lihat Detail
                         </button>

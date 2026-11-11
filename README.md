@@ -1,259 +1,200 @@
-# SIOMAS - Sistem Informasi Organisasi Mahasiswa
+# SIOMAS — Sistem Informasi Operasional & Manajemen Administrasi UKM
 
-![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.13-blue?logo=python&logoColor=white)
-![Flask](https://img.shields.io/badge/Flask-3.1-black?logo=flask&logoColor=white)
-![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
-![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white)
-![MySQL](https://img.shields.io/badge/MySQL-3306-4479A1?logo=mysql&logoColor=white)
-![Tests](https://img.shields.io/badge/Tests-10%2F10%20Passing-success)
+![Node.js](https://img.shields.io/badge/Node.js-Express.js_REST_API-339933?logo=node.js&logoColor=white)
+![React](https://img.shields.io/badge/React-18.3_Vite_5-61DAFB?logo=react&logoColor=black)
+![Database](https://img.shields.io/badge/Database-Neon_Serverless_PostgreSQL-00E599?logo=postgresql&logoColor=black)
+![Auth](https://img.shields.io/badge/Auth-JWT_%2B_Bcrypt-orange)
+![PWA](https://img.shields.io/badge/Responsive_Web-PWA_Ready-5A0FC8)
 
-Aplikasi Fullstack **SIOMAS (Sistem Informasi Organisasi Mahasiswa)** yang dirancang untuk mempermudah tata kelola administrasi organisasi kemahasiswaan, mencakup pengelolaan kalender kegiatan, pengarsipan dokumen/LPJ, kolaborasi antar-organisasi (Inter-UKM), dan pemantauan roadmap jobdesk anggota.
+**SIOMAS** adalah aplikasi web *Full-Stack* berarsitektur **3-Tier** untuk mendigitalisasi tata kelola operasional, administrasi **LPJ & SPJ Sipakamase**, penjadwalan kegiatan, delegasi tugas kepanitiaan, pengumuman berprioritas dengan pengingat email terjadwal (*Scheduled Email Reminders*), hingga jejaring kolaborasi **Hub Inter-UKM** di lingkungan Universitas Hasanuddin.
 
-Proyek ini terdiri dari dua bagian utama:
-- **Backend**: Python + Flask RESTful API dengan arsitektur **Blueprint modular**, **Flask-SQLAlchemy**, **Flask-JWT-Extended**, enkripsi password **bcrypt**, **Flask-CORS**, serta dokumentasi interaktif **Flasgger (Swagger OpenAPI 2.0)**.
-- **Frontend**: Single Page Application (SPA) berbasis **React 18** + **Vite 5** dengan sistem desain premium bertema dark-mode & clean UI sesuai rancangan mockup UI/UX.
+Seluruh spesifikasi mengacu pada dokumen **`SRS_SIOMAS_FASE2_REVISI (2) (3).pdf`** dan **[`PRD_SIOMAS_Full_Spec.md`](./PRD_SIOMAS_Full_Spec.md)**.
 
 ---
 
-## 📋 Daftar Modul & Fitur (Use Cases)
+## Arsitektur 3-Tier (Sesuai Gambar 6.1 SRS Fase 2)
 
-Aplikasi ini mencakup 11 modul Use Case utama yang saling terintegrasi:
+```mermaid
+flowchart TD
+    subgraph Tier1["1. Presentation Layer (Client Tier)"]
+        UI["Responsive Web UI (React 18 + Vite 5)\nDesktop (1024px+) • Tablet (768px) • Mobile (360px) / PWA-Ready"]
+    end
 
-| Kode UC | Nama Modul | Deskripsi Singkat |
-|---|---|---|
-| **UC-01** | Profil & Jobdesk | Melihat data diri, perbarui kontak/bio, dan memantau progres roadmap jobdesk anggota. |
-| **UC-02** | Autentikasi Akun | Registrasi anggota baru, login berbasis JWT (Access & Refresh Token), serta verifikasi akun. |
-| **UC-03** | Pembacaan Pengumuman | Feed pengumuman resmi organisasi, filter kategori, dan pencatatan status baca (*unread indicator*). |
-| **UC-04** | Jadwal Kegiatan | Kalender interaktif bulanan & mingguan serta detail agenda rapat/kegiatan. |
-| **UC-05** | Manajemen Pengumuman | CRUD pengumuman khusus pengurus/admin beserta pengingat agenda. |
-| **UC-06** | Unggah Dokumen & LPJ | Pengunggahan berkas draft LPJ/proposal format PDF beserta metadata dokumen. |
-| **UC-08** | Verifikasi Sipakamase | Verifikasi berkas kelengkapan administrasi kegiatan. |
-| **UC-09** | Validasi & Approval LPJ | Alur review persetujuan status LPJ (*Draft*, *Under Review*, *Approved*, *Rejected*). |
-| **UC-10** | Vault Arsip Dokumen | Gudang arsip digital terorganisir dengan pencarian, tag label, dan unduh berkas fisik. |
-| **UC-11** | Hub Komunitas Inter-UKM | Portal kolaborasi lintas organisasi, pengajuan ide publikasi, dan kirim permintaan kerja sama. |
-| **UC-12** | Log Audit & Notifikasi | Otomasi pencatatan aktivitas pengguna (*audit trail*) dan simulasi notifikasi email via SMTP. |
+    subgraph Tier2["2. Business / Application Layer (Server Tier)"]
+        API["Node.js + Express.js REST API (:5000)"]
+        AUTH["Auth & RBAC Middleware\n(JWT + Bcrypt + Per-UKM Isolation)"]
+        CRON["Email Notification Service\n(node-cron + Nodemailer SMTP / Webhook)"]
+        ZIP["Document & Archive Engine\n(Multer PDF/DOCX/XLSX + Archiver .ZIP)"]
+        SWAGGER["Swagger UI OpenAPI 3.0\n(/apidocs)"]
+    end
+
+    subgraph Tier3["3. Data Layer (Database & Storage Tier)"]
+        NEON[("Neon Cloud Serverless PostgreSQL\n(siomas_db — 10 Tabel + Audit View)")]
+        STORAGE[("Document Vault Storage\n(uploads/ • Maks. 10MB/file)")]
+    end
+
+    UI <-->|"HTTPS / JSON REST API"| API
+    API --- AUTH
+    API --- CRON
+    API --- ZIP
+    API --- SWAGGER
+    API <-->|"Sequelize ORM + pg Pool (SSL)"| NEON
+    ZIP <--> STORAGE
+```
+
+1. **Presentation Layer (`Frontend/`)**:
+   - Dibangun menggunakan **React 18 + Vite 5** dengan desain **Responsive Web UI** (*Desktop*, *Tablet*, *Smartphone* hingga `360px`) serta **PWA-Ready** (`manifest.json`).
+   - Dilengkapi *Collapsible Sidebar Drawer* pada layar tablet/mobile, kartu metrik adaptif, serta pembungkus tabel anti-*off-side* (`overflow-x: auto`).
+2. **Business / Application Layer (`Backend-Express/`)**:
+   - **Node.js + Express.js REST API** (`Backend-Express/server.js`) sebagai *engine* utama sesuai Gambar 6.1 SRS.
+   - Autentikasi **JWT (JSON Web Token)** via Header `Authorization: Bearer <token>`, Cookie `siomas_token`, maupun query `?token=`, ditambah hashing password **Bcrypt**.
+   - **Isolasi Data Per-UKM**: Akun **Ketua UKM**, **Pengurus Divisi**, dan **Anggota UKM** otomatis difilter berdasarkan organisasi UKM masing-masing (kecuali pada **Hub Inter-UKM** yang bersifat lintas UKM).
+   - **Email Reminder Scheduler (`UC-12`)**: Job terjadwal (`node-cron`) untuk pengiriman pengumuman & pengingat otomatis **Attempt 1 (Saat Publikasi)**, **Attempt 2 (+24 Jam)**, dan **Attempt 3 (+48 Jam)** bagi anggota yang belum membaca pengumuman (*auto-stop* ketika sudah dibaca), dilengkapi endpoint webhook `/api/v1/webhooks/email-status`.
+   - *(Opsional)* Tersedia juga modul fallback Python Flask di direktori `Backend/` yang terhubung ke database Neon yang sama.
+3. **Data Layer (Neon Cloud Serverless PostgreSQL)**:
+   - Menggunakan **Neon Cloud PostgreSQL (`siomas_db`)** sehingga **seluruh anggota tim pengembang berbagi database cloud yang sama secara *real-time*** tanpa perlu instalasi MySQL/PostgreSQL lokal.
 
 ---
 
-## 🛠️ Tech Stack
+## Cakupan 12 Use Case (SRS Fase 2)
 
-### Backend
-- **Bahasa & Framework**: Python (v3.10+) & Flask (Application Factory & Blueprint Modular)
-- **Database & ORM**: MySQL / MariaDB (`siomas`), Flask-SQLAlchemy & PyMySQL
-- **Keamanan & Autentikasi**: Flask-JWT-Extended, bcrypt password hashing, Role-Based Access Control (RBAC)
-- **Dokumentasi API**: Flasgger (Swagger UI di `/apidocs/`)
-- **Layanan Tambahan**: Logging audit otomatis (`audit_logs`), layanan SMTP email dengan fallback simulasi
-
-### Frontend
-- **Framework & Tooling**: React 18, Vite 5
-- **Ikonografi**: Lucide React
-- **Styling**: Vanilla CSS Design System (`style.css` & `portal.css`) dengan komponen responsif dan transisi halus
-- **State & Routing**: Hash-based client routing (`#/dashboard`, `#/agenda`, `#/vault`, `#/hub-inter`, `#/profile`, `#/login`, `#/register`)
+| Kode | Nama Use Case | Aktor Utama | Endpoint Utama |
+| :--- | :--- | :--- | :--- |
+| **UC-01** | Registrasi & Autentikasi Pengguna (JWT + Bcrypt) | Semua Aktor | `POST /api/v1/auth/register`, `POST /api/v1/auth/login` |
+| **UC-02** | Manajemen Profil & Isolasi Organisasi UKM | Semua Aktor | `GET /api/v1/profile`, `PUT /api/v1/profile` |
+| **UC-03** | Konfigurasi Hak Akses Peran (RBAC Matrix & Users) | Ketua UKM | `GET/PUT /api/v1/rbac/matrix`, `GET/PUT/DELETE /api/v1/users` |
+| **UC-04** | Lihat Kalender & Detail Kegiatan UKM | Semua Aktor | `GET /api/v1/schedules` |
+| **UC-05** | Kelola Jadwal Kegiatan & Deteksi Konflik Jadwal | Pengurus Divisi, Ketua UKM | `POST /api/v1/schedules`, `PUT/DELETE /api/v1/schedules/:id` |
+| **UC-06** | Unggah & Revisi Dokumen LPJ / SPJ Sipakamase | Pengurus Divisi | `POST /api/v1/documents`, `POST /api/v1/documents/:id/revise` |
+| **UC-07** | Delegasi Tugas, Presensi Kehadiran & Dasbor Koordinator | Semua Aktor | `PUT /api/v1/schedules/:id/rsvp`, `GET /api/v1/coordinator/stats` |
+| **UC-08** | Publikasi Pengumuman Berprioritas & Target Audiens | Pengurus Divisi, Ketua UKM | `GET/POST /api/v1/announcements`, `POST /api/v1/announcements/:id/read` |
+| **UC-09** | Validasi LPJ & Verifikasi Berkas SPJ Sipakamase | Ketua UKM | `PUT /api/v1/documents/:id/validate`, `PUT /api/v1/documents/:id/verify-spj` |
+| **UC-10** | Repository Vault & Unduh Bundel `.ZIP` LPJ + SPJ | Semua Aktor | `GET /api/v1/documents/:id/download`, `GET /api/v1/documents/bundle-zip` |
+| **UC-11** | Hub Inter-UKM (Papan Informasi & Kolaborasi Lintas UKM) | Ketua UKM, Pengurus Divisi | `GET/POST /api/v1/interukm`, `PUT/DELETE /api/v1/interukm/:id` |
+| **UC-12** | Log Pengiriman Email Terjadwal (Attempt 1–3) & Audit Trail | Ketua UKM | `GET /api/v1/email-logs`, `POST /api/v1/email-logs/trigger-reminders`, `GET /api/v1/audit-logs` |
 
 ---
 
-## 📂 Struktur Proyek
+## Struktur Direktori Proyek
 
 ```text
 siomas-flask/
-├── app/                              # Sumber Kode Backend Flask
-│   ├── blueprints/
-│   │   ├── uc01_profile/             # UC-01: Profil & Jobdesk
-│   │   ├── uc02_auth/                # UC-02: Register, Login, Token Refresh
-│   │   ├── uc03_announcements_read/  # UC-03: Baca Pengumuman & Status Unread
-│   │   ├── uc04_schedules/           # UC-04: Jadwal Kegiatan & Kalender
-│   │   ├── uc05_announcements_manage/# UC-05: Kelola Pengumuman (CRUD & Pengingat)
-│   │   ├── uc06_lpj_upload/          # UC-06: Unggah Draft LPJ
-│   │   ├── uc08_sipakamase_verify/   # UC-08: Verifikasi Dokumen Sipakamase
-│   │   ├── uc09_lpj_validation/      # UC-09: Validasi LPJ (Review & Approval)
-│   │   ├── uc10_documents_archive/   # UC-10: Arsip Dokumen & Unduh Berkas
-│   │   ├── uc11_interukm/            # UC-11: Kolaborasi & Postingan Lintas UKM
-│   │   └── uc12_notifications_audit/ # UC-12: Notifikasi Email SMTP & Log Audit
-│   ├── middleware/                   # RBAC Decorator & Otomasi Audit Logger
-│   ├── models/                       # SQLAlchemy Database Models
-│   ├── utils/                        # Helper DateTime, File Handler, Response JSON
-│   ├── config.py                     # Konfigurasi Environment Aplikasi
-│   ├── extensions.py                 # Inisialisasi DB, JWT, CORS, Swagger
-│   └── __init__.py                   # Application Factory (create_app)
-├── Frontend/                         # Sumber Kode Frontend React + Vite
-│   ├── css/
-│   │   ├── style.css                 # Desain sistem global & autentikasi
-│   │   └── portal.css                # Desain sistem portal anggota & komponen
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── anggota/              # Komponen Portal Anggota
-│   │   │   │   ├── AnggotaLayout.jsx               # Sidebar & Topbar Navigasi
-│   │   │   │   ├── AnggotaDashboard.jsx            # Beranda, Ringkasan Stat & Agenda
-│   │   │   │   ├── AnggotaAgenda.jsx               # Kalender Kegiatan Lengkap
-│   │   │   │   ├── AnggotaAnnouncementDetail.jsx   # Detail Pengumuman & Status Baca
-│   │   │   │   ├── AnggotaVault.jsx                # Repository Vault LPJ & Dokumen
-│   │   │   │   ├── ModalEditDokumen.jsx            # Modal Atur Label & Tag Dokumen
-│   │   │   │   ├── AnggotaHubInter.jsx             # Feed Komunitas Kolaborasi UKM
-│   │   │   │   ├── AnggotaHubDetail.jsx            # Detail Postingan Kolaborasi
-│   │   │   │   ├── AnggotaFormPublikasi.jsx        # Formulir Pengajuan Publikasi Hub
-│   │   │   │   ├── ModalPermintaanKolaborasi.jsx   # Modal Kirim Permintaan Kolaborasi
-│   │   │   │   └── AnggotaProfile.jsx              # Profil Anggota & Roadmap Jobdesk
-│   │   │   ├── Login.jsx             # Halaman Masuk Akun
-│   │   │   ├── Register.jsx          # Formulir Registrasi Anggota Baru
-│   │   │   ├── Pending.jsx           # Halaman Tunggu Verifikasi Akun
-│   │   │   ├── Unauthorized.jsx      # Halaman Peringatan Akses Ditolak
-│   │   │   └── Toast.jsx             # Komponen Notifikasi Toast Interaktif
-│   │   ├── services/
-│   │   │   └── api.js                # API Client Service & Koneksi Backend
-│   │   ├── App.jsx                   # Root Router & State Management
-│   │   └── main.jsx                  # Entrypoint Vite React
-│   ├── index.html                    # Single Page HTML
-│   ├── package.json                  # Dependensi Node.js
-│   └── vite.config.js                # Konfigurasi Vite
-├── tests/
-│   └── test_all_features.py          # Unit & Integration Test Suite (10 Skenario)
-├── uploads/                          # Direktori Penyimpanan Berkas Fisik (LPJ, PDF)
-├── .env                              # Pengaturan Lingkungan Lokal (Database, JWT, SMTP)
-├── .env.example                      # Contoh Format Konfigurasi Lingkungan
-├── PRD_SIOMAS_Full_Spec.md           # Dokumen Spesifikasi Kebutuhan Perangkat Lunak
-├── requirements.txt                  # Dependensi Paket Python
-├── run.py                            # Entrypoint Menjalankan Server Flask
-├── seed_db.py                        # Script Inisialisasi Skema & Seeder Akun Default
-├── siomas.sql                        # Skema Database & Permission Awal
-├── start_mysql.bat                   # Batch File Cepat Menjalankan MySQL
-└── start_server.bat                  # Batch File Cepat Menjalankan Backend Flask
+├── Backend-Express/               # [UTAMA] Server Tier — Node.js + Express.js REST API
+│   ├── server.js                  # Entry point Express.js, Sequelize Pool, JWT, Cron, ZIP, Swagger
+│   ├── package.json               # Dependensi Node.js (express, sequelize, pg, jsonwebtoken, dll.)
+│   └── .env                       # Konfigurasi koneksi Neon Cloud PostgreSQL & JWT Secret
+├── Frontend/                      # [UTAMA] Client Tier — React 18 + Vite 5 Responsive Web UI
+│   ├── index.html                 # Root HTML + Viewport + PWA Manifest Link
+│   ├── public/manifest.json       # Konfigurasi Progressive Web App (PWA)
+│   ├── css/                       # Stylesheet utama + Media Queries Responsive (Desktop/Tablet/HP)
+│   └── src/
+│       ├── api.js                 # Helper HTTP Client & manajemen token/cookie otomatis
+│       ├── pages/                 # Halaman Login, Register, dan Portal Role-Based
+│       └── components/
+│           ├── anggota/           # Modul UI Anggota UKM (5 Tab)
+│           ├── pengurus/          # Modul UI Pengurus Divisi (7 Tab)
+│           └── ketua/             # Modul UI Ketua UKM (9 Tab)
+├── Backend/                       # [OPSIONAL] Modul alternatif Python Flask + Skrip Migrasi Neon
+│   ├── app.py                     # Server Flask alternatif (port 5000)
+│   └── migrate_to_neon.py         # Skrip migrasi & sinkronisasi skema + seed ke Neon PostgreSQL
+├── PRD_SIOMAS_Full_Spec.md        # Dokumentasi Spesifikasi Teknis & 12 Use Case Lengkap
+├── SRS_SIOMAS_FASE2_REVISI (2) (3).pdf # Dokumen SRS Fase 2 Revisi
+└── README.md                      # Dokumentasi Utama Proyek
 ```
 
 ---
 
-## 🔐 Hak Akses & Role (RBAC)
+## Panduan Instalasi & Menjalankan Proyek (Untuk Tim)
 
-Aplikasi mendukung tiga role dengan kontrol hak akses granular:
+Karena proyek ini telah terhubung ke **Neon Cloud Serverless PostgreSQL (`siomas_db`)**, rekan satu tim **tidak perlu** menginstal atau membuat database lokal terlebih dahulu.
 
-| Role | Deskripsi Hak Akses |
-|---|---|
-| **Admin** | Memiliki seluruh hak akses (1 s/d 9): Pengelolaan user, persetujuan LPJ, persetujuan Inter-UKM, pengumuman, jadwal, dan unduh arsip. |
-| **Pengurus** | Akses operasional organisasi: Membuat pengumuman, mengunggah dokumen/LPJ, membuat jadwal kegiatan, dan membuat draft kolaborasi Inter-UKM. |
-| **Anggota** | Akses personal: Melihat beranda aktivitas, membaca pengumuman, melihat kalender agenda, melihat & mengunduh arsip dokumen vault, melihat feed kolaborasi Hub Inter-UKM, mengajukan ide kerja sama, serta mengelola profil & melihat roadmap jobdesk. |
+### Prasyarat
+- **Node.js** v18+ (disarankan v20 / v24 LTS) & `npm`
 
-### Matriks Permission Database:
-| ID | Nama Permission | Deskripsi |
-|---|---|---|
-| 1 | `buat_pengumuman` | Hak membuat pengumuman baru |
-| 2 | `kirim_email` | Hak memicu pengiriman notifikasi email SMTP |
-| 3 | `unggah_dokumen` | Hak mengunggah dokumen atau LPJ baru |
-| 4 | `setujui_dokumen` | Hak mengubah status dokumen menjadi Approved / Rejected |
-| 5 | `buat_jadwal` | Hak menambahkan jadwal agenda kegiatan |
-| 6 | `buat_interukm` | Hak membuat postingan kolaborasi lintas UKM |
-| 7 | `setujui_interukm` | Hak menyetujui publikasi postingan inter-UKM |
-| 8 | `baca_pengumuman` | Hak membaca pengumuman organisasi |
-| 9 | `lihat_jadwal` | Hak melihat kalender agenda kegiatan |
+### 1. Menjalankan Backend (`Node.js + Express.js REST API`)
 
----
-
-## 🚀 Panduan Instalasi & Menjalankan Aplikasi
-
-### 1. Prasyarat Sistem
-- **Python**: Versi 3.10 atau lebih baru ([Unduh Python](https://www.python.org/downloads/))
-- **Node.js**: Versi 18 atau lebih baru ([Unduh Node.js](https://nodejs.org/))
-- **MySQL / MariaDB**: Berjalan di port default `3306` (misal via XAMPP)
-- **Git**: Untuk cloning repository
-
----
-
-### 2. Persiapan Backend (Flask & Database)
-
-1. **Clone repository & masuk ke direktori utama**:
-   ```powershell
-   git clone https://github.com/indirafix03/SIOMAS.git
-   cd SIOMAS
-   ```
-
-2. **Buat & aktifkan Python Virtual Environment (opsional namun disarankan)**:
-   ```powershell
-   python -m venv venv
-   .\venv\Scripts\activate
-   ```
-
-3. **Install dependensi Python**:
-   ```powershell
-   pip install -r requirements.txt
-   ```
-
-4. **Konfigurasi Environment**:
-   Salin `.env.example` menjadi `.env` jika belum ada:
-   ```powershell
-   copy .env.example .env
-   ```
-
-5. **Inisialisasi Database & Seeder**:
-   - Pastikan MySQL/MariaDB sudah menyala (via XAMPP atau klik ganda `start_mysql.bat`).
-   - Jalankan skrip seeder untuk membuat database `siomas`, tabel, dan akun default:
-   ```powershell
-   python seed_db.py
-   ```
-
-6. **Jalankan Server Backend Flask**:
-   ```powershell
-   python run.py
-   ```
-   *Atau klik ganda berkas `start_server.bat`.*
-
-   - **REST API Endpoint**: `http://127.0.0.1:5000`
-   - **Swagger OpenAPI Documentation**: `http://127.0.0.1:5000/apidocs/`
-     *(Gunakan tombol **Authorize** di pojok kanan atas Swagger dengan format `Bearer <access_token>` setelah login).*
-
----
-
-### 3. Persiapan Frontend (React + Vite)
-
-Buka jendela terminal baru khusus untuk frontend:
-
-1. **Masuk ke direktori Frontend**:
-   ```powershell
-   cd Frontend
-   ```
-
-2. **Install dependensi Node.js**:
-   ```powershell
-   npm install
-   ```
-
-3. **Jalankan Development Server**:
-   ```powershell
-   npm run dev
-   ```
-
-4. **Buka Aplikasi di Browser**:
-   Buka `http://localhost:3000` di browser Anda.
-
----
-
-## 👤 Akun Bawaan untuk Uji Coba
-
-Gunakan kredensial berikut untuk masuk ke aplikasi (sudah otomatis terisi saat menjalankan `seed_db.py`):
-
-| Role | Email | Password | Hak & Lingkup Akses |
-|---|---|---|---|
-| **Anggota** | `anggota@siomas.com` | `anggota123` | Akses penuh Portal Anggota (Dashboard, Agenda, Vault Dokumen, Hub Inter-UKM, Profil) |
-| **Pengurus** | `pengurus@siomas.com` | `pengurus123` | Akses operasional pengurus organisasi |
-| **Admin** | `admin@siomas.com` | `admin123` | Akses penuh manajemen sistem & approval |
-
----
-
-## 🧪 Menjalankan Rangkaian Pengujian (Automated Tests)
-
-Aplikasi dilengkapi unit test terintegrasi untuk memverifikasi fungsionalitas seluruh modul UC-01 sampai UC-12:
+Buka terminal pertama, masuk ke direktori `Backend-Express`, lalu instal dependensi dan jalankan server:
 
 ```powershell
-python -m unittest tests/test_all_features.py -v
+cd Backend-Express
+npm install
+npm start
 ```
 
-Hasil pengujian mencakup 10 skenario:
-1. `test_01_swagger_docs`: Verifikasi ketersediaan dan format OpenAPI Flasgger.
-2. `test_02_profile_flow`: Pengambilan dan pembaruan profil user.
-3. `test_03_role_and_permissions`: Validasi Role-Based Access Control (RBAC).
-4. `test_04_announcements_unread`: Pencatatan status baca pengumuman.
-5. `test_05_schedule_and_reminder`: Jadwal agenda dan pengingat.
-6. `test_06_lpj_workflow`: Siklus upload, review, dan approval LPJ.
-7. `test_07_sipakamase_verification`: Alur verifikasi dokumen Sipakamase.
-8. `test_08_documents_archive_and_download`: Manajemen arsip dokumen dan download file.
-9. `test_09_interukm_collaboration`: Postingan kolaborasi dan persetujuan ketua.
-10. `test_10_notifications_and_audit_logs`: Verifikasi audit logging otomatis dan fallback email SMTP.
+Server REST API akan aktif di **`http://127.0.0.1:5000`**.
 
-Seluruh pengujian terverifikasi **100% OK (Ran 10 tests in ~1.5s - OK)**.
+> **Catatan:** Pastikan tidak ada proses lain yang sedang memakai port `5000` (misalnya server Flask lama). Jika muncul `EADDRINUSE: address already in use 0.0.0.0:5000`, hentikan proses di port 5000 terlebih dahulu.
+
+### 2. Menjalankan Frontend (`React 18 + Vite`)
+
+Buka terminal kedua, masuk ke direktori `Frontend`, lalu instal dependensi dan jalankan *dev server*:
+
+```powershell
+cd Frontend
+npm install
+npm run dev
+```
+
+Aplikasi web dapat diakses melalui browser di **`http://localhost:5173`**.
+
+---
+
+## Cara Mengakses & Menguji REST API
+
+Terdapat **3 cara mudah** untuk mengakses dan menguji endpoint REST API SIOMAS:
+
+1. **Swagger UI Interaktif (Rekomendasi)**:
+   - Buka **`http://127.0.0.1:5000/apidocs`** di browser.
+   - Dokumentasi lengkap seluruh endpoint tersedia beserta tombol **Try it out** dan **Authorize** (Bearer JWT).
+2. **Langsung di Browser (Cookie Session Otomatis)**:
+   - Login terlebih dahulu melalui web **`http://localhost:5173`** atau melalui Swagger `/api/v1/auth/login`.
+   - Server otomatis menyimpan cookie `siomas_token`, sehingga Anda dapat membuka URL seperti **`http://127.0.0.1:5000/api/v1/profile`** atau **`http://127.0.0.1:5000/api/v1/schedules`** langsung di tab browser.
+3. **Health Check Publik (Tanpa Login)**:
+   - Buka **`http://127.0.0.1:5000/api/v1/health`** untuk memeriksa status koneksi server Express.js dan database Neon Cloud PostgreSQL.
+
+---
+
+## Daftar Akun Default (Testing & Demo)
+
+Seluruh akun bawaan di bawah ini menggunakan password: **`password123`**
+
+### 1. Akun Ketua UKM (Isolasi Data Per-UKM)
+Setiap Ketua UKM hanya melihat dokumen LPJ/SPJ, jadwal internal, manajemen akses anggota, dan log di dalam organisasi UKM yang dipimpinnya:
+
+| Email | Password | Organisasi UKM |
+| :--- | :--- | :--- |
+| `ketua.robotika@siomas.com` | `password123` | UKM Robotika |
+| `ketua.seni@siomas.com` | `password123` | UKM Seni & Budaya |
+| `ketua.olahraga@siomas.com` | `password123` | UKM Olahraga |
+| `ketua.penalaran@siomas.com` | `password123` | UKM Penalaran & Riset |
+| `ketua.ksr@siomas.com` | `password123` | UKM KSR PMI |
+| `ketua.pers@siomas.com` | `password123` | UKM Pers Mahasiswa |
+| `ketua.mapala@siomas.com` | `password123` | UKM Mapala |
+| `ketua@siomas.com` | `password123` | UKM Robotika (Default Demo) |
+
+### 2. Akun Pengurus Divisi
+| Email | Password | Organisasi UKM | Divisi |
+| :--- | :--- | :--- | :--- |
+| `pengurus@siomas.com` | `password123` | UKM Robotika | Divisi Acara & Kompetisi |
+| `robotikapengurus@siomas.com` | `password123` | UKM Robotika | Divisi Acara & Kompetisi |
+
+### 3. Akun Anggota UKM
+| Email | Password | Organisasi UKM | Divisi |
+| :--- | :--- | :--- | :--- |
+| `anggota@siomas.com` | `password123` | UKM Robotika | Divisi Riset & Teknologi |
+| `anggotarobotika@siomas.com` | `password123` | UKM Robotika | Divisi Riset & Teknologi |
+
+---
+
+## Skema Database Cloud (Neon PostgreSQL — 10 Tabel + 1 View)
+
+1. **`users`** — Data pengguna, peran (`Anggota UKM`, `Pengurus Divisi`, `Ketua UKM`), organisasi `ukm`, `divisi`, dan status aktif.
+2. **`permissions`** — Daftar 9 kode izin operasional (`VIEW_SCHEDULE`, `MANAGE_SCHEDULE`, `UPLOAD_LPJ_SPJ`, `VALIDATE_LPJ_SPJ`, `PUBLISH_ANNOUNCEMENT`, `MANAGE_USERS_RBAC`, `ACCESS_INTERUKM_HUB`, `VIEW_AUDIT_EMAIL_LOGS`, `MANAGE_TASK_DELEGATION`).
+3. **`role_permissions`** — Pemetaan matriks RBAC antara peran dan kode izin (`UC-03`).
+4. **`schedules`** — Jadwal kegiatan, rapat, penugasan kepanitiaan (`assigned_to`), serta status presensi/kehadiran (`attendance_status`) (`UC-04`, `UC-05`, `UC-07`).
+5. **`documents`** — Berkas LPJ & SPJ Sipakamase, versi revisi (`revision_number`), status validasi, dan rincian anggaran (`rab_anggaran`, `realisasi_anggaran`) (`UC-06`, `UC-09`, `UC-10`).
+6. **`announcements`** — Pengumuman berprioritas (`Normal`, `Penting`, `Mendesak / Urgent`) dan target audiens (`UC-08`).
+7. **`announcement_reads`** — Pencatatan waktu baca pengumuman per anggota untuk menghentikan pengingat email otomatis (`UC-08`, `UC-12`).
+8. **`email_logs`** — Log pengiriman email pengumuman dan pengingat terjadwal (`Attempt 1`, `Attempt 2`, `Attempt 3`) beserta status *delivery* (`UC-12`).
+9. **`interukm_posts`** — Publikasi program kolaborasi, peminjaman inventaris, dan undangan lintas UKM (`UC-11`).
+10. **`audit_logs`** & View **`system_audit_logs`** — Rekam jejak perubahan data kritis dengan *JSON Before/After State* (`old_value` & `new_value`) serta alamat IP (`UC-12`).

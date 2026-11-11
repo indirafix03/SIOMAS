@@ -17,9 +17,10 @@ Backend/uploads/*
 .env
 Backend/.env
 
-# Node & Frontend
+# Node & Frontend & Backend-Express
 node_modules/
 Frontend/node_modules/
+Backend-Express/node_modules/
 Frontend/dist/
 .npm
 *.log

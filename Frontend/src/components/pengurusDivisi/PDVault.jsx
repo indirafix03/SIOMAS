@@ -288,6 +288,18 @@ export default function PDVault({ showToast }) {
             <p className="page-subtitle">Kelola dan temukan dokumen organisasi dalam satu tempat.</p>
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              type="button"
+              className="btn-secondary"
+              style={{ width: 'auto', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              onClick={async () => {
+                const ok = await documentsApi.downloadBundle(activeFilter);
+                if (ok) showToast(`Mengunduh Bundel_${activeFilter}_SIOMAS.zip...`, 'success');
+                else showToast('Gagal mengunduh bundel ZIP.', 'error');
+              }}
+            >
+              <Download size={16} /> Unduh Bundel .ZIP ({activeFilter})
+            </button>
             <button type="button" className="btn-primary-glow" onClick={() => setShowUnggahModal(true)}>
               <Upload size={16} style={{ marginRight: '6px' }} /> Unggah Dokumen
             </button>

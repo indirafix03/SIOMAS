@@ -10,7 +10,9 @@ import {
   LifeBuoy,
   LogOut,
   Bell,
-  ChevronRight
+  ChevronRight,
+  Menu,
+  X
 } from 'lucide-react';
 import { lpjApi } from '../../services/api.js';
 
@@ -23,6 +25,7 @@ export default function PDLayout({
   unreadCount = 0
 }) {
   const [revisiCount, setRevisiCount] = useState(0);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     const loadRevisiCount = async () => {
@@ -71,22 +74,45 @@ export default function PDLayout({
   const isHubActive = ['pd-hub-inter', 'pd-detail-kolaborasi', 'pd-form-publikasi'].includes(activeView);
   const isDashboardActive = ['pd-dashboard', 'pd-detail-pengumuman'].includes(activeView);
 
+  const handleNavClick = (viewKey) => {
+    setMobileNavOpen(false);
+    onNavigate(viewKey);
+  };
+
   return (
     <div className="portal-container">
+      {mobileNavOpen && (
+        <div
+          className="portal-sidebar-backdrop"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="portal-sidebar">
+      <aside className={`portal-sidebar ${mobileNavOpen ? 'open' : ''}`}>
         <div>
-          <a
-            href="#/pd-dashboard"
-            className="portal-sidebar-brand"
-            onClick={(e) => { e.preventDefault(); onNavigate('pd-dashboard'); }}
-          >
-            <div className="portal-brand-logo">S</div>
-            <div className="portal-brand-text">
-              <h2>SIOMAS</h2>
-              <p>Sistem Organisasi Mahasiswa</p>
-            </div>
-          </a>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '36px' }}>
+            <a
+              href="#/pd-dashboard"
+              className="portal-sidebar-brand"
+              style={{ marginBottom: 0 }}
+              onClick={(e) => { e.preventDefault(); handleNavClick('pd-dashboard'); }}
+            >
+              <div className="portal-brand-logo">S</div>
+              <div className="portal-brand-text">
+                <h2>SIOMAS</h2>
+                <p>Sistem Organisasi Mahasiswa</p>
+              </div>
+            </a>
+            <button
+              type="button"
+              className="portal-mobile-close-btn"
+              onClick={() => setMobileNavOpen(false)}
+              aria-label="Tutup Menu"
+            >
+              <X size={20} />
+            </button>
+          </div>
 
           <div className="portal-sidebar-section-title">Menu Utama</div>
           <ul className="portal-nav-list">
@@ -102,7 +128,7 @@ export default function PDLayout({
                   <button
                     type="button"
                     className={`portal-nav-item ${isActive ? 'active' : ''}`}
-                    onClick={() => onNavigate(item.key)}
+                    onClick={() => handleNavClick(item.key)}
                   >
                     <Icon size={18} />
                     <span>{item.label}</span>
@@ -163,10 +189,20 @@ export default function PDLayout({
       <div className="portal-main-area">
         {/* Top Navbar */}
         <header className="portal-topbar">
-          <div className="portal-breadcrumb">
-            <span className="root">SIOMAS</span>
-            <span className="divider">/</span>
-            <span className="current">{currentLabel}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button
+              type="button"
+              className="portal-mobile-menu-btn"
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Buka Menu Navigasi"
+            >
+              <Menu size={20} />
+            </button>
+            <div className="portal-breadcrumb">
+              <span className="root">SIOMAS</span>
+              <span className="divider">/</span>
+              <span className="current">{currentLabel}</span>
+            </div>
           </div>
 
           <div className="portal-topbar-actions">

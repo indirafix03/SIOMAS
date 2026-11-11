@@ -67,12 +67,24 @@ export default function AnggotaVault({ showToast }) {
     <div>
       {/* Header */}
       <div className="page-header-block">
-        <div className="page-title-row">
+        <div className="page-title-row" style={{ alignItems: 'flex-end' }}>
           <div>
             <span className="page-category-tag">PUSAT DOKUMEN</span>
             <h1 className="page-title">Repository Vault</h1>
             <p className="page-subtitle">Kelola dan temukan dokumen organisasi dalam satu tempat.</p>
           </div>
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ width: 'auto', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
+            onClick={async () => {
+              const ok = await documentsApi.downloadBundle(activeFilter);
+              if (ok) showToast(`Mengunduh Bundel_${activeFilter}_SIOMAS.zip...`, 'success');
+              else showToast('Gagal mengunduh bundel ZIP.', 'error');
+            }}
+          >
+            <Download size={16} /> Unduh Bundel .ZIP ({activeFilter})
+          </button>
         </div>
       </div>
 

@@ -2,6 +2,17 @@ import bcrypt
 from app.extensions import db
 from app.utils.datetime_helper import utc_now
 
+VALID_UKM_LIST = (
+    'UKM Seni & Budaya',
+    'UKM Olahraga',
+    'UKM Penalaran & Penelitian',
+    'UKM KSR - PMI',
+    'UKM Pers Mahasiswa',
+    'UKM Mapala',
+    'UKM Robotika & Teknologi',
+)
+
+
 class User(db.Model):
     __tablename__ = 'users'
 
@@ -29,6 +40,38 @@ class User(db.Model):
             return False
         return bcrypt.checkpw(raw_password.encode('utf-8'), self.Password_Hash.encode('utf-8'))
 
+    def get_ukm(self):
+        """
+        Mengekstrak nama UKM dari kolom Job_Desc (format: 'UKM ... - Divisi ...' atau 'UKM ...').
+        Mengembalikan None jika akun belum terikat pada UKM spesifik.
+        """
+        raw = (self.Job_Desc or '').strip()
+        if not raw:
+            return None
+        for ukm_name in VALID_UKM_LIST:
+            if raw.lower().startswith(ukm_name.lower()):
+                return ukm_name
+        if ' - ' in raw:
+            prefix = raw.split(' - ', 1)[0].strip()
+            if prefix.upper().startswith('UKM'):
+                return prefix
+        if raw.upper().startswith('UKM '):
+            return raw
+        return None
+
+    def get_divisi(self):
+        """
+        Mengekstrak nama Divisi / Jabatan tanpa prefix UKM.
+        """
+        raw = (self.Job_Desc or '').strip()
+        if not raw:
+            return self.Role
+        if ' - ' in raw:
+            prefix, rest = raw.split(' - ', 1)
+            if prefix.strip().upper().startswith('UKM'):
+                return rest.strip()
+        return raw
+
     def to_dict(self, include_sensitive=False):
         data = {
             'id': self.ID,
@@ -37,6 +80,8 @@ class User(db.Model):
             'email': self.Email,
             'role': self.Role,
             'job_desc': self.Job_Desc,
+            'ukm': self.get_ukm(),
+            'divisi': self.get_divisi(),
             'status_keanggotaan': self.Status_Keanggotaan,
             'created_at': self.Created_At.strftime('%Y-%m-%d %H:%M:%S') if self.Created_At else None,
             'created_by': self.Created_By,

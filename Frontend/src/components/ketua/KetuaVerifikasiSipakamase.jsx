@@ -92,19 +92,32 @@ export default function KetuaVerifikasiSipakamase({ showToast }) {
       )}
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px' }}>
+      <div className="responsive-page-header">
         <div>
-          <span style={{ fontSize: '12px', fontWeight: 700, color: '#4F46E5', letterSpacing: '0.06em', textTransform: 'uppercase' }}>KONSOL ADMIN • SIPAKAMASE</span>
+          <span style={{ fontSize: '12px', fontWeight: 700, color: '#4F46E5', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>KONSOL ADMIN • SIPAKAMASE</span>
           <h1 className="page-title">Verifikasi Dokumen Sipakamase</h1>
-          <p className="page-subtitle">Periksa kelengkapan administrasi dan validasi bundel dokumen pertanggungjawaban organisasi.</p>
+          <p className="page-subtitle" style={{ lineHeight: 1.55, marginTop: '6px' }}>Periksa kelengkapan administrasi dan validasi bundel dokumen pertanggungjawaban organisasi.</p>
         </div>
-        <span style={{ fontSize: '13px', fontWeight: 700, color: '#D97706' }}>{docs.length} menunggu verifikasi</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={async () => {
+              const ok = await documentsApi.downloadBundle('Sipakamase');
+              if (ok) showToast && showToast('Mengunduh Bundel_Sipakamase_SIOMAS.zip...', 'success');
+              else showToast && showToast('Gagal mengunduh bundel ZIP Sipakamase.', 'error');
+            }}
+            style={{ background: '#fff', border: '1.5px solid #E2E8F0', borderRadius: '10px', padding: '8px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#0F172A', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+          >
+            <Download size={15} /> Unduh Bundel Sipakamase (.ZIP)
+          </button>
+          <span style={{ fontSize: '13px', fontWeight: 700, color: '#D97706', background: '#FEF3C7', padding: '6px 14px', borderRadius: '999px', whiteSpace: 'nowrap' }}>{docs.length} menunggu verifikasi</span>
+        </div>
       </div>
 
       {/* 3-Column */}
-      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr 280px', gap: '20px' }}>
+      <div className="responsive-3col-grid">
         {/* Antrian */}
-        <div className="portal-card" style={{ padding: 0 }}>
+        <div className="portal-card" style={{ padding: 0, minWidth: 0 }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F5F9' }}>
             <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Antrean Sipakamase</h3>
             <p style={{ fontSize: '12px', color: '#94A3B8', marginTop: '2px' }}>Dokumen terbaru</p>
@@ -132,32 +145,32 @@ export default function KetuaVerifikasiSipakamase({ showToast }) {
         </div>
 
         {/* Isi Bundel */}
-        <div className="portal-card" style={{ padding: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #F1F5F9' }}>
-            <div>
+        <div className="portal-card" style={{ padding: 0, minWidth: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', padding: '16px 20px', borderBottom: '1px solid #F1F5F9' }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Detail Dokumen</h3>
-              <p style={{ fontSize: '12px', color: '#94A3B8', marginTop: '2px' }}>{selected ? selected.nama_berkas : 'Pilih dokumen'}</p>
+              <p style={{ fontSize: '12.5px', color: '#94A3B8', marginTop: '4px', wordBreak: 'break-word' }}>{selected ? selected.nama_berkas : 'Pilih dokumen'}</p>
             </div>
             {selected && (
-              <button onClick={() => handleDownload(selected)} style={{ background: 'none', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#64748B', fontFamily: 'inherit' }}>
+              <button onClick={() => handleDownload(selected)} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '7px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#334155', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
                 <Download size={14} /> Unduh Berkas
               </button>
             )}
           </div>
           <div>
             {selected ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '18px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px', padding: '18px 20px' }}>
                 <div style={{ width: '36px', height: '36px', background: '#FEE2E2', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EF4444', flexShrink: 0 }}>
                   <FileText size={18} />
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0F172A' }}>{selected.nama_berkas}</div>
-                  <div style={{ fontSize: '11.5px', color: '#94A3B8', marginTop: '2px' }}>Diunggah oleh {selected.uploader_name || 'Pengurus'}</div>
+                <div style={{ flex: 1, minWidth: '160px' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#0F172A', lineHeight: 1.4, wordBreak: 'break-word' }}>{selected.nama_berkas}</div>
+                  <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '4px', lineHeight: 1.4 }}>Diunggah oleh {selected.uploader_name || 'Pengurus'}</div>
                 </div>
-                <span style={{ background: '#FEF3C7', color: '#D97706', fontSize: '12px', fontWeight: 700, padding: '3px 10px', borderRadius: '6px' }}>Sipakamase</span>
+                <span style={{ background: '#FEF3C7', color: '#D97706', fontSize: '12px', fontWeight: 700, padding: '4px 10px', borderRadius: '6px' }}>Sipakamase</span>
               </div>
             ) : (
-              <div style={{ padding: '40px', textAlign: 'center', color: '#94A3B8', fontSize: '13.5px' }}>
+              <div style={{ padding: '40px 20px', textAlign: 'center', color: '#94A3B8', fontSize: '13.5px' }}>
                 Tidak ada dokumen Sipakamase untuk ditampilkan.
               </div>
             )}
@@ -165,7 +178,7 @@ export default function KetuaVerifikasiSipakamase({ showToast }) {
         </div>
 
         {/* Checklist & Actions */}
-        <div className="portal-card" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div className="portal-card" style={{ display: 'flex', flexDirection: 'column', gap: '14px', minWidth: 0 }}>
           <div>
             <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>Checklist Verifikasi</h3>
             <p style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>Konfirmasi setiap persyaratan sebelum menyetujui.</p>

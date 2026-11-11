@@ -137,7 +137,21 @@ def create_app(config_class=Config):
     def serve_frontend_static(filename):
         return send_from_directory(frontend_dir, filename)
 
-    # Ensure upload directory exists
+    # Ensure upload directory exists and serve uploaded files
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+    @app.route('/uploads/<path:filename>')
+    def serve_uploaded_file(filename):
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+    # Alias endpoints for direct SRS Sequence 5 & Sequence 7 compatibility
+    from app.blueprints.uc10_documents_archive.routes import download_documents_bundle
+    from app.blueprints.uc12_notifications_audit.routes import email_delivery_webhook
+    app.add_url_rule('/api/documents/bundle', 'srs_alias_documents_bundle', download_documents_bundle, methods=['GET'])
+    app.add_url_rule('/api/webhooks/email-status', 'srs_alias_email_webhook', email_delivery_webhook, methods=['POST'])
+
+    # Start background scheduler for UC-12 24h (Attempt 2) & 48h (Attempt 3) email reminders
+    from app.utils.email_service import start_email_reminder_scheduler
+    start_email_reminder_scheduler(app, interval_seconds=3600)
 
     return app

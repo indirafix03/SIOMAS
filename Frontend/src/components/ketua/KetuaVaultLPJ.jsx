@@ -262,15 +262,29 @@ export default function KetuaVaultLPJ({ showToast }) {
     }
   };
 
+  const handleDownloadBundle = async () => {
+    const ok = await documentsApi.downloadBundle(activeFilter);
+    if (ok) {
+      showToast && showToast(`Mengunduh bundel ZIP (${activeFilter})...`, 'success');
+    } else {
+      showToast && showToast('Gagal mengunduh bundel ZIP.', 'error');
+    }
+  };
+
   return (
     <div>
       {modalLabel && (
         <ModalAturLabel
           doc={modalLabel}
           onClose={() => setModalLabel(null)}
-          onSave={({ label, tags }) => {
-            setDocuments(prev => prev.map(d => d.id === modalLabel.id ? { ...d, label, tags } : d));
-            showToast && showToast('Label berhasil diperbarui', 'success');
+          onSave={async ({ label, tags }) => {
+            const res = await documentsApi.updateCategory(modalLabel.id, label, modalLabel.nama);
+            if (res.ok) {
+              setDocuments(prev => prev.map(d => d.id === modalLabel.id ? { ...d, label, tags } : d));
+              showToast && showToast(`Label dokumen diperbarui ke ${label}`, 'success');
+            } else {
+              showToast && showToast(res.data?.message || 'Gagal memperbarui label', 'error');
+            }
           }}
         />
       )}
@@ -290,13 +304,21 @@ export default function KetuaVaultLPJ({ showToast }) {
       )}
 
       {/* Header */}
-      <div className="page-header-block" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+      <div className="responsive-page-header">
         <div>
-          <span style={{ fontSize: '12px', fontWeight: 700, color: '#4F46E5', letterSpacing: '0.06em', textTransform: 'uppercase' }}>PUSAT DOKUMEN</span>
+          <span style={{ fontSize: '12px', fontWeight: 700, color: '#4F46E5', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>PUSAT DOKUMEN</span>
           <h1 className="page-title">Repository Vault</h1>
-          <p className="page-subtitle">Kelola dan temukan dokumen organisasi dalam satu tempat.</p>
+          <p className="page-subtitle" style={{ lineHeight: 1.55, marginTop: '6px' }}>Kelola dan temukan dokumen organisasi dalam satu tempat.</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ width: 'auto', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px' }}
+            onClick={handleDownloadBundle}
+          >
+            <Download size={16} /> Unduh Bundel .ZIP ({activeFilter})
+          </button>
           <button className="btn-primary" style={{ width: 'auto', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
             onClick={() => setShowUnggah(true)}>
             <Upload size={16} /> Unggah Dokumen
@@ -305,10 +327,10 @@ export default function KetuaVaultLPJ({ showToast }) {
       </div>
 
       {/* Table Card */}
-      <div className="portal-card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div className="portal-card" style={{ padding: 0 }}>
         {/* Search + Filters */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #F1F5F9', flexWrap: 'wrap', gap: '12px' }}>
-          <div style={{ position: 'relative', flex: '1', minWidth: '240px' }}>
+          <div style={{ position: 'relative', flex: '1', minWidth: '220px' }}>
             <Search size={16} color="#94A3B8" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
             <input
               className="form-input"
@@ -318,7 +340,7 @@ export default function KetuaVaultLPJ({ showToast }) {
               onChange={e => setSearchQuery(e.target.value)}
             />
           </div>
-          <div style={{ display: 'flex', gap: '6px' }}>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             {filters.map(f => (
               <button key={f} onClick={() => setActiveFilter(f)} style={{
                 background: activeFilter === f ? '#4F46E5' : '#F8FAFC',
@@ -336,7 +358,8 @@ export default function KetuaVaultLPJ({ showToast }) {
         </div>
 
         {/* Table */}
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div className="table-scroll-wrap">
+        <table style={{ width: '100%', minWidth: '640px', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
               {['NAMA DOKUMEN', 'LABEL', 'PENGUNGGAH', 'DIPERBARUI', 'FORMAT', 'STATUS', ''].map(h => (
@@ -396,6 +419,7 @@ export default function KetuaVaultLPJ({ showToast }) {
             )}
           </tbody>
         </table>
+        </div>
 
         {/* Pagination */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderTop: '1px solid #F1F5F9' }}>

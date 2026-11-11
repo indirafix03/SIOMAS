@@ -216,6 +216,26 @@ export const documentsApi = {
     return true;
   },
 
+  downloadBundle: async (kategori = '') => {
+    const token = getAuthToken();
+    const q = kategori && kategori !== 'Semua' ? `?kategori=${encodeURIComponent(kategori)}` : '';
+    const res = await fetch(`${API_BASE_URL}/documents/bundle${q}`, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
+    if (!res.ok) return false;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const label = kategori && kategori !== 'Semua' ? kategori : 'Semua_Dokumen';
+    a.download = `Bundel_${label}_SIOMAS.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return true;
+  },
+
   getDownloadUrl: (id) => {
     return `${API_BASE_URL}/documents/${id}/download`;
   }
@@ -463,6 +483,23 @@ export const interUkmApi = {
 // Notifications / Email Logs API Calls (UC-12)
 export const notificationsApi = {
   getEmailLogs: async () => {
-    return apiFetch('/notifications/email-logs');
+    return apiFetch('/notifications/email/logs');
+  },
+
+  runScheduler: async (forceNextAttempt = true, announcementId = null) => {
+    return apiFetch('/notifications/email/run-scheduler', {
+      method: 'POST',
+      body: JSON.stringify({
+        force_next_attempt: forceNextAttempt,
+        ...(announcementId ? { announcement_id: announcementId } : {})
+      })
+    });
+  },
+
+  triggerWebhook: async (emailLogId, status) => {
+    return apiFetch('/notifications/email/webhook', {
+      method: 'POST',
+      body: JSON.stringify({ email_log_id: emailLogId, status_pengiriman: status })
+    });
   }
 };

@@ -75,20 +75,45 @@ def create_announcement():
     db.session.add(announcement)
     db.session.commit()
 
-    log_audit("CREATE_ANNOUNCEMENT", "Pengumuman", f"Pengumuman dibuat: '{judul}' (ID: {announcement.ID})")
+    # Inisialisasi tracking announcement_reads (Is_Read=False) untuk anggota aktif di UKM yang sama
+    actor_ukm = user.get_ukm() if user else None
+    active_users = User.query.filter_by(Status_Keanggotaan='Aktif').all()
+    if actor_ukm:
+        active_users = [u for u in active_users if u.get_ukm() == actor_ukm]
 
-    # If notify_email is enabled, trigger email notification to all active users
+    for recipient in active_users:
+        existing_read = AnnouncementRead.query.filter_by(
+            Announcement_ID=announcement.ID,
+            User_ID=recipient.ID
+        ).first()
+        if not existing_read:
+            db.session.add(AnnouncementRead(
+                Announcement_ID=announcement.ID,
+                User_ID=recipient.ID,
+                Is_Read=(recipient.ID == user.ID),
+                Read_At=utc_now() if recipient.ID == user.ID else None
+            ))
+    db.session.commit()
+
+    log_audit(
+        "CREATE_ANNOUNCEMENT",
+        "Pengumuman",
+        f"Pengumuman dibuat: '{judul}' (ID: {announcement.ID})",
+        after={"id": announcement.ID, "judul": judul, "is_important": is_important}
+    )
+
+    # Jika notify_email atau is_important diaktifkan, kirim Attempt-1 ke seluruh anggota aktif yang belum membaca
     email_results = []
-    if notify_email:
-        active_users = User.query.filter_by(Status_Keanggotaan='Aktif').all()
+    if notify_email or is_important:
         for recipient in active_users:
-            if recipient.Email:
+            if recipient.Email and recipient.ID != user.ID:
                 res = send_notification_with_retry(
                     announcement_id=announcement.ID,
                     user_id=recipient.ID,
                     to_email=recipient.Email,
                     subject=f"[SIOMAS] {judul}",
-                    content=isi
+                    content=isi,
+                    attempt_number=1
                 )
                 email_results.append(res)
 

@@ -27,6 +27,8 @@ def list_pending_lpj():
       200:
         description: Antrean LPJ berhasil diambil
     """
+    user = get_current_user()
+    actor_ukm = user.get_ukm() if user else None
     search = request.args.get('search')
     query = Document.query.filter(
         Document.Kategori == 'LPJ',
@@ -38,6 +40,8 @@ def list_pending_lpj():
         query = query.filter(Document.Nama_Berkas.ilike(f"%{search}%"))
 
     pending_docs = query.order_by(Document.ID.asc()).all()
+    if actor_ukm:
+        pending_docs = [d for d in pending_docs if not d.uploader or not d.uploader.get_ukm() or d.uploader.get_ukm() == actor_ukm]
 
     return success_response(
         data=[d.to_dict() for d in pending_docs],
@@ -90,6 +94,14 @@ def validate_lpj(document_id):
     if not doc or doc.Kategori != 'LPJ' or doc.Is_Deleted:
         return error_response("Dokumen LPJ tidak ditemukan", 404)
 
+    actor_ukm = user.get_ukm() if user else None
+    uploader_ukm = doc.uploader.get_ukm() if doc.uploader else None
+    if actor_ukm and uploader_ukm and uploader_ukm != actor_ukm:
+        return error_response(
+            f"Akses ditolak: Anda adalah Ketua {actor_ukm} dan tidak dapat memvalidasi LPJ dari {uploader_ukm}.",
+            403
+        )
+
     data = request.get_json() or {}
     new_status = data.get('status')
     catatan = data.get('catatan_revisi', '').strip()
@@ -97,15 +109,30 @@ def validate_lpj(document_id):
     if new_status not in ('Approved', 'Revisi'):
         return error_response("Status validasi harus 'Approved' atau 'Revisi'", 400)
 
+    before_state = {
+        "id": doc.ID,
+        "nama_berkas": doc.Nama_Berkas,
+        "status": doc.Status,
+        "approved_by": doc.Approved_By
+    }
+
     doc.Status = new_status
     doc.Approved_By = user.ID
     db.session.commit()
+
+    after_state = {
+        "id": doc.ID,
+        "nama_berkas": doc.Nama_Berkas,
+        "status": doc.Status,
+        "approved_by": doc.Approved_By,
+        "catatan": catatan
+    }
 
     detail_str = f"LPJ '{doc.Nama_Berkas}' divalidasi dengan status {new_status} oleh {user.Nama}"
     if catatan:
         detail_str += f". Catatan: {catatan}"
 
-    log_audit("VALIDATE_LPJ", "Validasi LPJ", detail_str)
+    log_audit("VALIDATE_LPJ", "Validasi LPJ", detail_str, before=before_state, after=after_state)
 
     return success_response(
         data={

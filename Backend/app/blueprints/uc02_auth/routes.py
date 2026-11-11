@@ -6,12 +6,34 @@ from flask_jwt_extended import (
     get_jwt_identity
 )
 from app.extensions import db
-from app.models.user import User
+from app.models.user import User, VALID_UKM_LIST
 from app.middleware.auth_middleware import get_current_user, get_user_permissions, role_required
 from app.middleware.audit_logger import log_audit
 from app.utils.response import success_response, error_response
 
 auth_bp = Blueprint('uc02_auth', __name__, url_prefix='/api/v1/auth')
+
+
+def _check_ukm_scope(actor: User, target: User):
+    """
+    Memastikan Ketua / Pengurus dari suatu UKM hanya dapat mengelola anggota
+    yang berasal dari UKM yang sama.
+    Mengembalikan (True, None) jika diizinkan, atau (False, pesan_error) jika ditolak.
+    """
+    if not actor or not target:
+        return False, "Pengguna tidak ditemukan"
+    actor_ukm = actor.get_ukm()
+    if not actor_ukm:
+        # Jika akun Super-Admin tidak terikat UKM spesifik, izinkan
+        return True, None
+    target_ukm = target.get_ukm()
+    if target_ukm != actor_ukm:
+        return (
+            False,
+            f"Akses ditolak: Anda adalah {actor.Role} {actor_ukm} dan tidak memiliki wewenang mengontrol anggota dari {target_ukm or 'UKM lain'}."
+        )
+    return True, None
+
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -21,32 +43,6 @@ def login():
     tags:
       - "UC-02: Autentikasi & Manajemen Akun"
     summary: Login dengan email dan password
-    description: Memvalidasi kredensial pengguna, mengecek status keaktifan, dan mengembalikan JWT Access Token serta Refresh Token.
-    parameters:
-      - in: body
-        name: body
-        required: true
-        schema:
-          type: object
-          required:
-            - email
-            - password
-          properties:
-            email:
-              type: string
-              example: admin@siomas.com
-            password:
-              type: string
-              example: admin123
-    responses:
-      200:
-        description: Login berhasil
-      400:
-        description: Input tidak lengkap
-      401:
-        description: Kredensial tidak valid
-      403:
-        description: Akun tidak aktif
     """
     data = request.get_json() or {}
     email = data.get('email', '').strip()
@@ -72,7 +68,7 @@ def login():
     refresh_token = create_refresh_token(identity=str(user.ID))
     permissions = list(get_user_permissions(user))
 
-    log_audit("LOGIN_SUCCESS", "Auth", f"Login berhasil untuk user: {user.Nama} ({user.Role})", user_id=user.ID)
+    log_audit("LOGIN_SUCCESS", "Auth", f"Login berhasil untuk user: {user.Nama} ({user.Role} - {user.get_ukm() or 'SIOMAS'})", user_id=user.ID)
 
     return success_response(
         data={
@@ -92,40 +88,7 @@ def register():
     ---
     tags:
       - "UC-02: Autentikasi & Manajemen Akun"
-    summary: Mendaftarkan akun pengguna baru
-    description: Mendaftarkan pengguna ke sistem. Role default adalah Anggota. Ketua dapat menentukan role spesifik.
-    parameters:
-      - in: body
-        name: body
-        required: true
-        schema:
-          type: object
-          required:
-            - nama
-            - email
-            - password
-          properties:
-            nama:
-              type: string
-              example: Muh. Farhan
-            email:
-              type: string
-              example: farhan@siomas.com
-            password:
-              type: string
-              example: rahasia123
-            role:
-              type: string
-              enum: [Ketua, Pengurus, Anggota]
-              example: Anggota
-            job_desc:
-              type: string
-              example: Anggota Divisi Humas
-    responses:
-      201:
-        description: Pendaftaran berhasil
-      400:
-        description: Validasi data gagal atau email sudah terdaftar
+    summary: Mendaftarkan akun pengguna baru sesuai UKM pilihan
     """
     data = request.get_json() or {}
     nama = data.get('nama', '').strip()
@@ -151,7 +114,6 @@ def register():
     if role not in ('Ketua', 'Pengurus', 'Anggota'):
         return error_response("Role harus salah satu dari: Ketua, Pengurus, Anggota", 400)
 
-    # Check if email exists
     if User.query.filter_by(Email=email).first():
         return error_response("Email sudah terdaftar di sistem", 400)
 
@@ -160,10 +122,13 @@ def register():
         current_u = get_current_user()
         if current_u:
             creator_id = current_u.ID
+            # Jika Ketua UKM mendaftarkan anggota secara langsung, wariskan UKM Ketua bila belum diisi
+            if not ukm and current_u.get_ukm():
+                ukm = current_u.get_ukm()
+                job_desc = f"{ukm} - {divisi or job_desc or role}"
     except Exception:
         creator_id = None
 
-    # Status default: Menunggu Verifikasi untuk registrasi mandiri, Aktif jika didaftarkan admin
     status_keanggotaan = data.get('status_keanggotaan', 'Menunggu Verifikasi' if not creator_id else 'Aktif')
     if status_keanggotaan not in ('Menunggu Verifikasi', 'Aktif', 'Alumni'):
         status_keanggotaan = 'Menunggu Verifikasi'
@@ -182,11 +147,17 @@ def register():
     db.session.add(new_user)
     db.session.commit()
 
-    log_audit("REGISTER_USER", "Auth", f"User baru didaftarkan: {new_user.Email} ({new_user.Role}, Status: {new_user.Status_Keanggotaan})", user_id=new_user.ID)
+    log_audit(
+        "REGISTER_USER",
+        "Auth",
+        f"User baru didaftarkan: {new_user.Email} ({new_user.Role}, UKM: {new_user.get_ukm() or '-'}, Status: {new_user.Status_Keanggotaan})",
+        user_id=new_user.ID,
+        after=new_user.to_dict()
+    )
 
     return success_response(
         data=new_user.to_dict(),
-        message="Registrasi berhasil. Akun Anda sedang menunggu verifikasi oleh Ketua." if status_keanggotaan == 'Menunggu Verifikasi' else "Registrasi berhasil",
+        message="Registrasi berhasil. Akun Anda sedang menunggu verifikasi oleh Ketua UKM." if status_keanggotaan == 'Menunggu Verifikasi' else "Registrasi berhasil",
         code=201
     )
 
@@ -196,17 +167,6 @@ def register():
 def refresh_token():
     """
     Perbarui Access Token Menggunakan Refresh Token
-    ---
-    tags:
-      - "UC-02: Autentikasi & Manajemen Akun"
-    summary: Refresh JWT Access Token
-    security:
-      - BearerAuth: []
-    responses:
-      200:
-        description: Access token berhasil diperbarui
-      401:
-        description: Refresh token tidak valid atau kedaluwarsa
     """
     identity = get_jwt_identity()
     user = db.session.get(User, int(identity))
@@ -224,30 +184,17 @@ def refresh_token():
 @role_required('Ketua', 'Pengurus')
 def list_users():
     """
-    Daftar Seluruh Pengguna
+    Daftar Pengguna (Terisolasi Sesuai UKM Ketua / Pengurus yang Login)
     ---
     tags:
       - "UC-02: Autentikasi & Manajemen Akun"
-    summary: Mendapatkan daftar akun pengguna (Ketua & Pengurus)
+    summary: Mendapatkan daftar akun pengguna yang berada di dalam UKM yang sama dengan Ketua/Pengurus
     security:
       - BearerAuth: []
-    parameters:
-      - in: query
-        name: role
-        type: string
-        enum: [Ketua, Pengurus, Anggota]
-      - in: query
-        name: status
-        type: string
-        enum: [Aktif, Alumni]
-      - in: query
-        name: search
-        type: string
-        description: Cari nama atau email
-    responses:
-      200:
-        description: Daftar pengguna berhasil diambil
     """
+    current_user = get_current_user()
+    actor_ukm = current_user.get_ukm() if current_user else None
+
     role = request.args.get('role')
     status = request.args.get('status')
     search = request.args.get('search')
@@ -261,11 +208,25 @@ def list_users():
         search_filter = f"%{search}%"
         query = query.filter((User.Nama.ilike(search_filter)) | (User.Email.ilike(search_filter)))
 
-    users = query.order_by(User.Created_At.desc()).all()
+    all_matching = query.order_by(User.Created_At.desc()).all()
+
+    # Filter ketat berdasarkan UKM milik Ketua/Pengurus yang sedang login,
+    # dan hanya tampilkan Anggota & Pengurus (tidak menampilkan akun Ketua sebagai anggota)
+    include_ketua = request.args.get('include_ketua', 'false').lower() in ('true', '1')
+    users = []
+    for u in all_matching:
+        if not include_ketua and u.Role == 'Ketua':
+            continue
+        if actor_ukm and u.get_ukm() != actor_ukm:
+            continue
+        users.append(u)
+
     return success_response(
         data=[u.to_dict() for u in users],
         total=len(users),
-        message="Daftar pengguna berhasil diambil"
+        managed_ukm=actor_ukm,
+        valid_ukm_list=list(VALID_UKM_LIST),
+        message=f"Daftar pengguna {actor_ukm or 'Seluruh UKM'} berhasil diambil"
     )
 
 
@@ -273,27 +234,18 @@ def list_users():
 @jwt_required()
 def get_user_detail(user_id):
     """
-    Detail Pengguna Berdasarkan ID
-    ---
-    tags:
-      - "UC-02: Autentikasi & Manajemen Akun"
-    summary: Mengambil profil lengkap user berdasarkan ID
-    security:
-      - BearerAuth: []
-    parameters:
-      - in: path
-        name: user_id
-        type: integer
-        required: true
-    responses:
-      200:
-        description: Data user ditemukan
-      404:
-        description: User tidak ditemukan
+    Detail Pengguna Berdasarkan ID (Terisolasi per UKM)
     """
+    current_user = get_current_user()
     user = db.session.get(User, user_id)
     if not user:
         return error_response("Pengguna tidak ditemukan", 404)
+
+    if current_user and current_user.ID != user.ID:
+        allowed, err_msg = _check_ukm_scope(current_user, user)
+        if not allowed:
+            return error_response(err_msg, 403)
+
     return success_response(data=user.to_dict())
 
 
@@ -301,48 +253,18 @@ def get_user_detail(user_id):
 @role_required('Ketua')
 def update_user(user_id):
     """
-    Update Akun Pengguna (Ketua Only)
-    ---
-    tags:
-      - "UC-02: Autentikasi & Manajemen Akun"
-    summary: Mengubah data, role, jobdesk, atau status keanggotaan pengguna
-    security:
-      - BearerAuth: []
-    parameters:
-      - in: path
-        name: user_id
-        type: integer
-        required: true
-      - in: body
-        name: body
-        schema:
-          type: object
-          properties:
-            nama:
-              type: string
-            email:
-              type: string
-            role:
-              type: string
-              enum: [Ketua, Pengurus, Anggota]
-            job_desc:
-              type: string
-            status_keanggotaan:
-              type: string
-              enum: [Aktif, Alumni]
-            password:
-              type: string
-    responses:
-      200:
-        description: Data pengguna berhasil diperbarui
-      404:
-        description: User tidak ditemukan
+    Update Akun Pengguna (Ketua Only - Hanya untuk Anggota di UKM yang Sama)
     """
     user = db.session.get(User, user_id)
     if not user:
         return error_response("Pengguna tidak ditemukan", 404)
 
     current_user = get_current_user()
+    allowed, err_msg = _check_ukm_scope(current_user, user)
+    if not allowed:
+        return error_response(err_msg, 403)
+
+    before_state = user.to_dict()
     data = request.get_json() or {}
 
     if 'nama' in data:
@@ -359,7 +281,12 @@ def update_user(user_id):
     if 'role' in data and data['role'] in ('Ketua', 'Pengurus', 'Anggota'):
         user.Role = data['role']
     if 'job_desc' in data:
-        user.Job_Desc = data['job_desc'].strip() if data['job_desc'] else None
+        new_jd = data['job_desc'].strip() if data['job_desc'] else None
+        # Pastikan prefix UKM tetap terjaga jika Ketua terikat pada UKM tertentu
+        actor_ukm = current_user.get_ukm() if current_user else None
+        if actor_ukm and new_jd and not new_jd.lower().startswith(actor_ukm.lower()):
+            new_jd = f"{actor_ukm} - {new_jd}"
+        user.Job_Desc = new_jd
     if 'status_keanggotaan' in data and data['status_keanggotaan'] in ('Menunggu Verifikasi', 'Pending', 'Aktif', 'Alumni'):
         user.Status_Keanggotaan = 'Menunggu Verifikasi' if data['status_keanggotaan'] == 'Pending' else data['status_keanggotaan']
     if 'password' in data and data['password']:
@@ -368,7 +295,13 @@ def update_user(user_id):
     user.Updated_By = current_user.ID if current_user else None
     db.session.commit()
 
-    log_audit("UPDATE_USER", "User Management", f"Ketua memperbarui akun: {user.Email} (ID: {user.ID})")
+    log_audit(
+        "UPDATE_USER",
+        "User Management",
+        f"Ketua ({current_user.get_ukm() or 'SIOMAS'}) memperbarui akun: {user.Email} (ID: {user.ID})",
+        before=before_state,
+        after=user.to_dict()
+    )
 
     return success_response(
         data=user.to_dict(),
@@ -380,25 +313,7 @@ def update_user(user_id):
 @role_required('Ketua')
 def delete_user(user_id):
     """
-    Hapus Pengguna (Ketua Only)
-    ---
-    tags:
-      - "UC-02: Autentikasi & Manajemen Akun"
-    summary: Menghapus akun pengguna dari database
-    security:
-      - BearerAuth: []
-    parameters:
-      - in: path
-        name: user_id
-        type: integer
-        required: true
-    responses:
-      200:
-        description: Akun pengguna berhasil dihapus
-      400:
-        description: Tidak dapat menghapus akun sendiri
-      404:
-        description: User tidak ditemukan
+    Hapus Pengguna (Ketua Only - Hanya untuk Anggota di UKM yang Sama)
     """
     current_user = get_current_user()
     if current_user and current_user.ID == user_id:
@@ -408,11 +323,22 @@ def delete_user(user_id):
     if not user:
         return error_response("Pengguna tidak ditemukan", 404)
 
+    allowed, err_msg = _check_ukm_scope(current_user, user)
+    if not allowed:
+        return error_response(err_msg, 403)
+
+    before_state = user.to_dict()
     email = user.Email
     db.session.delete(user)
     db.session.commit()
 
-    log_audit("DELETE_USER", "User Management", f"Ketua menghapus pengguna: {email} (ID: {user_id})")
+    log_audit(
+        "DELETE_USER",
+        "User Management",
+        f"Ketua ({current_user.get_ukm() or 'SIOMAS'}) menghapus pengguna: {email} (ID: {user_id})",
+        before=before_state,
+        after=None
+    )
 
     return success_response(message=f"Pengguna {email} berhasil dihapus")
 
@@ -421,36 +347,32 @@ def delete_user(user_id):
 @role_required('Ketua')
 def verify_user(user_id):
     """
-    Verifikasi & Aktifkan Akun Anggota (Ketua Only) - FRAME-17 & TC-02
-    ---
-    tags:
-      - "UC-02: Autentikasi & Manajemen Akun"
-    summary: Memverifikasi pendaftar baru dan mengaktifkan akun (Status_Keanggotaan = 'Aktif')
-    security:
-      - BearerAuth: []
-    parameters:
-      - in: path
-        name: user_id
-        type: integer
-        required: true
-    responses:
-      200:
-        description: Akun berhasil diverifikasi dan diaktifkan
-      404:
-        description: User tidak ditemukan
+    Verifikasi & Aktifkan Akun Anggota (Ketua Only - Hanya Anggota di UKM yang Sama)
     """
     user = db.session.get(User, user_id)
     if not user:
         return error_response("Pengguna tidak ditemukan", 404)
 
     current_user = get_current_user()
+    allowed, err_msg = _check_ukm_scope(current_user, user)
+    if not allowed:
+        return error_response(err_msg, 403)
+
+    before_state = {"id": user.ID, "email": user.Email, "ukm": user.get_ukm(), "status_keanggotaan": user.Status_Keanggotaan}
     user.Status_Keanggotaan = 'Aktif'
     user.Updated_By = current_user.ID if current_user else None
     db.session.commit()
+    after_state = {"id": user.ID, "email": user.Email, "ukm": user.get_ukm(), "status_keanggotaan": user.Status_Keanggotaan}
 
-    log_audit("VERIFY_USER", "Auth", f"Ketua memverifikasi dan mengaktifkan akun: {user.Email} (ID: {user.ID})", user_id=user.ID)
+    log_audit(
+        "VERIFY_USER",
+        "Auth",
+        f"Ketua ({current_user.get_ukm() or 'SIOMAS'}) memverifikasi dan mengaktifkan akun: {user.Email} (ID: {user.ID})",
+        before=before_state,
+        after=after_state
+    )
 
     return success_response(
         data=user.to_dict(),
-        message=f"Akun {user.Nama} ({user.Email}) berhasil diverifikasi dan aktif."
+        message=f"Akun {user.Nama} ({user.get_ukm() or user.Email}) berhasil diverifikasi dan aktif."
     )
