@@ -1,7 +1,7 @@
 const nodemailer = require('nodemailer');
 const cron = require('node-cron');
 const { pool } = require('../config/database');
-const { getUkmFromJobDesc } = require('../utils/helpers');
+const { getUkmFromJobDesc, formatDateOnlyId, formatTimeOnlyWita } = require('../utils/helpers');
 
 const SMTP_USER = process.env.SMTP_USER || 'indiraramayani10@gmail.com';
 const SMTP_PASSWORD = process.env.SMTP_PASSWORD || 'khliriyzqsoqtmmc';
@@ -78,6 +78,12 @@ async function triggerAnnouncementEmails(announcement, creatorUser) {
     ? activeUsers.filter(u => getUkmFromJobDesc(u.Job_Desc) === creatorUkm)
     : activeUsers;
 
+  const tanggalStr = formatDateOnlyId(announcement.Tanggal_Kegiatan, announcement.Created_At);
+  const waktuStr = formatTimeOnlyWita(announcement.Waktu_Kegiatan, announcement.Created_At);
+  const lokasiStr = announcement.Lokasi || 'Kampus SIOMAS';
+  const kategoriStr = announcement.Kategori || (announcement.Is_Important ? 'Penting / Manajemen' : 'Umum');
+  const pengirimStr = `${creatorUser?.Nama || 'Pengurus UKM'}${creatorUkm ? ` (${creatorUkm})` : ''}`;
+
   let sent = 0;
   let failed = 0;
 
@@ -94,10 +100,20 @@ async function triggerAnnouncementEmails(announcement, creatorUser) {
       );
     }
 
+    const emailText =
+      `Halo ${recipient.Nama},\n\n` +
+      `Terdapat pengumuman penting baru dari ${pengirimStr}:\n\n` +
+      `• Judul Pengumuman : ${announcement.Judul}\n` +
+      `• Kategori         : ${kategoriStr}\n` +
+      `• Tanggal Kegiatan : ${tanggalStr}\n` +
+      `• Waktu Kegiatan   : ${waktuStr}\n` +
+      `• Lokasi           : ${lokasiStr}\n\n` +
+      `Deskripsi / Isi Pengumuman:\n${announcement.Isi}`;
+
     const ok = await sendSmtpEmail(
       recipient.Email,
       `[SIOMAS - PENGUMUMAN PENTING] ${announcement.Judul}`,
-      `Halo ${recipient.Nama},\n\nPengumuman penting baru:\n\nJudul: ${announcement.Judul}\n${announcement.Isi}`
+      emailText
     );
     const statusStr = ok ? 'Terkirim' : 'Gagal';
     if (ok) sent++;
@@ -119,18 +135,26 @@ async function triggerScheduleEmails(scheduleRow, creatorUser) {
     ? activeUsers.filter(u => getUkmFromJobDesc(u.Job_Desc) === creatorUkm)
     : activeUsers;
 
-  const waktuStr = scheduleRow.Waktu
-    ? new Date(scheduleRow.Waktu).toISOString().replace('T', ' ').slice(0, 16) + ' WITA'
-    : '-';
+  const tanggalStr = formatDateOnlyId(null, scheduleRow.Waktu);
+  const waktuStr = formatTimeOnlyWita(null, scheduleRow.Waktu);
+  const lokasiStr = scheduleRow.Lokasi || 'Kampus SIOMAS';
+  const kategoriStr = scheduleRow.Kategori || 'Agenda Kegiatan';
 
   const judulAnn = `[Agenda ${creatorUkm || 'UKM'}] ${scheduleRow.Judul_Kegiatan}`;
-  const isiAnn = `Agenda Kegiatan Baru telah dijadwalkan:\n\n• Kegiatan: ${scheduleRow.Judul_Kegiatan}\n• Kategori: ${scheduleRow.Kategori || 'Umum'}\n• Waktu: ${waktuStr}\n• Lokasi: ${scheduleRow.Lokasi || 'Kampus'}\n• Keterangan: ${scheduleRow.Keterangan || '-'}`;
+  const isiAnn =
+    `Agenda Kegiatan Baru telah dijadwalkan:\n` +
+    `• Kegiatan: ${scheduleRow.Judul_Kegiatan}\n` +
+    `• Kategori: ${kategoriStr}\n` +
+    `• Tanggal: ${tanggalStr}\n` +
+    `• Waktu: ${waktuStr}\n` +
+    `• Lokasi: ${lokasiStr}\n` +
+    `• Keterangan: ${scheduleRow.Keterangan || '-'}`;
 
-  // Insert companion announcement so it is tracked in announcement_reads & email_logs (UC-12)
+  // Insert companion announcement with separated Tanggal & Waktu metadata
   const { rows: annRows } = await pool.query(
-    `INSERT INTO announcements ("Judul", "Isi", "Is_Important", "Created_By", "Created_At", "Updated_By")
-     VALUES ($1, $2, TRUE, $3, NOW(), $3) RETURNING *`,
-    [judulAnn, isiAnn, creatorUser.ID]
+    `INSERT INTO announcements ("Judul", "Isi", "Is_Important", "Kategori", "Tanggal_Kegiatan", "Waktu_Kegiatan", "Lokasi", "Created_By", "Created_At", "Updated_By")
+     VALUES ($1, $2, TRUE, $3, $4, $5, $6, $7, NOW(), $7) RETURNING *`,
+    [judulAnn, scheduleRow.Keterangan || `Pelaksanaan agenda kegiatan ${scheduleRow.Judul_Kegiatan}.`, kategoriStr, tanggalStr, waktuStr, lokasiStr, creatorUser.ID]
   );
   const ann = annRows[0];
 
@@ -236,10 +260,22 @@ async function processScheduledEmailReminders(forceNow = false) {
       }
 
       if (nextAttempt) {
+        const tanggalStr = formatDateOnlyId(ann.Tanggal_Kegiatan, ann.Created_At);
+        const waktuStr = formatTimeOnlyWita(ann.Waktu_Kegiatan, ann.Created_At);
+        const lokasiStr = ann.Lokasi || 'Kampus SIOMAS';
+        const reminderBody =
+          `Halo ${user.Nama},\n\n` +
+          `Ini adalah pengingat otomatis ke-${nextAttempt} bahwa Anda belum membaca pengumuman penting berikut:\n\n` +
+          `• Judul Pengumuman : ${ann.Judul}\n` +
+          `• Tanggal Kegiatan : ${tanggalStr}\n` +
+          `• Waktu Kegiatan   : ${waktuStr}\n` +
+          `• Lokasi           : ${lokasiStr}\n\n` +
+          `Deskripsi:\n${ann.Isi}`;
+
         const ok = await sendSmtpEmail(
           user.Email,
           `[PENGINGAT KE-${nextAttempt} SIOMAS] Belum Dibaca: ${ann.Judul}`,
-          `Halo ${user.Nama}, Anda belum membaca pengumuman penting: ${ann.Judul}`
+          reminderBody
         );
         const statusStr = ok ? 'Terkirim' : 'Gagal';
         await pool.query(

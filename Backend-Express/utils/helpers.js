@@ -132,6 +132,44 @@ async function recordAuditLog({ userId, aksi, modul, recordId = null, before = n
   }
 }
 
+const DAYS_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+const MONTHS_FULL_ID = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+];
+
+function formatDateOnlyId(rawDateStr, fallbackDateObj = null) {
+  if (rawDateStr && String(rawDateStr).trim()) {
+    const clean = String(rawDateStr).trim();
+    // If YYYY-MM-DD
+    const d = new Date(clean.length === 10 ? `${clean}T00:00:00` : clean);
+    if (!isNaN(d.getTime())) {
+      return `${DAYS_ID[d.getDay()]}, ${d.getDate()} ${MONTHS_FULL_ID[d.getMonth()]} ${d.getFullYear()}`;
+    }
+    return clean;
+  }
+  const d = fallbackDateObj ? new Date(fallbackDateObj) : new Date();
+  if (!isNaN(d.getTime())) {
+    return `${DAYS_ID[d.getDay()]}, ${d.getDate()} ${MONTHS_FULL_ID[d.getMonth()]} ${d.getFullYear()}`;
+  }
+  return '-';
+}
+
+function formatTimeOnlyWita(rawTimeStr, fallbackDateObj = null) {
+  if (rawTimeStr && String(rawTimeStr).trim()) {
+    const clean = String(rawTimeStr).trim();
+    if (clean.toUpperCase().includes('WITA')) return clean;
+    return `${clean} WITA`;
+  }
+  const d = fallbackDateObj ? new Date(fallbackDateObj) : new Date();
+  if (!isNaN(d.getTime())) {
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm} WITA`;
+  }
+  return '09:00 WITA';
+}
+
 module.exports = {
   hashPassword,
   verifyPassword,
@@ -139,6 +177,8 @@ module.exports = {
   getUkmFromJobDesc,
   getDivisiFromJobDesc,
   formatUserRow,
-  recordAuditLog
+  recordAuditLog,
+  formatDateOnlyId,
+  formatTimeOnlyWita
 };
 

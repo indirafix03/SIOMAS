@@ -46,7 +46,7 @@ router.get('/api/v1/notifications/email/logs', requireAuth, async (req, res) => 
 
 router.post('/api/v1/notifications/email/run-scheduler', requireAuth, async (req, res) => {
   try {
-    const force = Boolean(req.body?.force);
+    const force = Boolean(req.body?.force || req.body?.force_next_attempt);
     const summary = await processScheduledEmailReminders(force);
     res.json({
       status: 'success',

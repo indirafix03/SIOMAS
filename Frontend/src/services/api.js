@@ -81,11 +81,11 @@ export const authApi = {
   },
 
   getProfile: async () => {
-    return apiFetch('/profile/me');
+    return apiFetch('/profile');
   },
 
   updateProfile: async (profileData) => {
-    return apiFetch('/profile/me', {
+    return apiFetch('/profile', {
       method: 'PUT',
       body: JSON.stringify(profileData)
     });
@@ -96,7 +96,7 @@ export const authApi = {
 export const announcementsApi = {
   getAll: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
-    return apiFetch(`/announcements${query ? `?${query}` : ''}`);
+    return apiFetch(`/announcements/feed${query ? `?${query}` : ''}`);
   },
 
   getById: async (id) => {
@@ -104,32 +104,32 @@ export const announcementsApi = {
   },
 
   getUnreadCount: async () => {
-    return apiFetch('/announcements/unread-count');
+    return apiFetch('/announcements/feed');
   },
 
   markRead: async (id, isRead = true) => {
-    return apiFetch(`/announcements/${id}/mark-read`, {
-      method: 'POST',
+    return apiFetch(`/announcements/feed/${id}/read`, {
+      method: 'PUT',
       body: JSON.stringify({ is_read: isRead })
     });
   },
 
   create: async (payload) => {
-    return apiFetch('/admin/announcements', {
+    return apiFetch('/announcements/manage', {
       method: 'POST',
       body: JSON.stringify(payload)
     });
   },
 
   update: async (id, payload) => {
-    return apiFetch(`/admin/announcements/${id}`, {
+    return apiFetch(`/announcements/manage/${id}`, {
       method: 'PUT',
       body: JSON.stringify(payload)
     });
   },
 
   delete: async (id) => {
-    return apiFetch(`/admin/announcements/${id}`, {
+    return apiFetch(`/announcements/manage/${id}`, {
       method: 'DELETE'
     });
   }
@@ -186,7 +186,7 @@ export const documentsApi = {
   },
 
   updateCategory: async (id, kategori, namaBerkas) => {
-    return apiFetch(`/documents/${id}`, {
+    return apiFetch(`/documents/${id}/kategori`, {
       method: 'PUT',
       body: JSON.stringify({ kategori, nama_berkas: namaBerkas })
     });
@@ -274,7 +274,7 @@ export const lpjApi = {
 
   validate: async (documentId, status, catatanRevisi = '') => {
     return apiFetch(`/lpj-validation/${documentId}/validate`, {
-      method: 'POST',
+      method: 'PATCH',
       body: JSON.stringify({ status, catatan_revisi: catatanRevisi })
     });
   },
@@ -303,7 +303,7 @@ export const sipakamaseApi = {
 
   verify: async (documentId, status, catatan = '') => {
     return apiFetch(`/sipakamase/${documentId}/verify`, {
-      method: 'POST',
+      method: 'PATCH',
       body: JSON.stringify({ status, catatan })
     });
   }
@@ -311,7 +311,7 @@ export const sipakamaseApi = {
 
 // Inter-UKM API Calls (UC-11)
 export const parseInterUkmPost = (item) => {
-  const isPending = item.status_persetujuan === 'Pending';
+  const isPending = item.status_persetujuan === 'Pending' || item.status_persetujuan === 'Menunggu Verifikasi';
   const dateStr = item.date
     ? new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
     : 'Baru saja';
@@ -360,8 +360,8 @@ export const parseInterUkmPost = (item) => {
       } else {
         fileName = lampRaw;
       }
-    } else if (part.startsWith('FotoURL:')) {
-      const p = part.replace('FotoURL:', '').trim();
+    } else if (part.startsWith('FotoURL:') || part.startsWith('BannerURL:')) {
+      const p = part.replace(/^(FotoURL|BannerURL):/, '').trim();
       fotoUrl = p.startsWith('http') ? p : `${backendOrigin}${p}`;
     } else if (part.startsWith('FileURL:')) {
       const p = part.replace('FileURL:', '').trim();
@@ -426,7 +426,7 @@ export const interUkmApi = {
   },
 
   getPending: async () => {
-    return apiFetch('/interukm/posts/pending');
+    return apiFetch('/interukm/pending');
   },
 
   getMyPosts: async () => {
@@ -462,13 +462,13 @@ export const interUkmApi = {
 
   approve: async (id) => {
     return apiFetch(`/interukm/posts/${id}/approve`, {
-      method: 'POST'
+      method: 'PATCH'
     });
   },
 
   reject: async (id, alasan = '') => {
     return apiFetch(`/interukm/posts/${id}/reject`, {
-      method: 'POST',
+      method: 'PATCH',
       body: JSON.stringify({ alasan_penolakan: alasan })
     });
   },

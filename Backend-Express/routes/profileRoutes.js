@@ -4,11 +4,11 @@ const { pool } = require('../config/database');
 const { hashPassword, getUkmFromJobDesc, getDivisiFromJobDesc, formatUserRow, recordAuditLog } = require('../utils/helpers');
 const { requireAuth } = require('../middlewares/authMiddleware');
 
-router.get(['/api/v1/profile', '/api/profile'], requireAuth, async (req, res) => {
+router.get(['/api/v1/profile', '/api/v1/profile/me', '/api/profile', '/api/profile/me'], requireAuth, async (req, res) => {
   res.json({ status: 'success', data: formatUserRow(req.user) });
 });
 
-router.put(['/api/v1/profile', '/api/profile'], requireAuth, async (req, res) => {
+router.put(['/api/v1/profile', '/api/v1/profile/me', '/api/profile', '/api/profile/me'], requireAuth, async (req, res) => {
   try {
     const beforeData = formatUserRow(req.user);
     const { nama, nim, email, password, ukm, divisi, job_desc } = req.body || {};

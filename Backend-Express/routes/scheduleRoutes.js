@@ -40,6 +40,24 @@ router.get(['/api/v1/schedules', '/api/schedules'], requireAuth, async (req, res
   }
 });
 
+router.get(['/api/v1/schedules/:id', '/api/schedules/:id'], requireAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ status: 'error', message: 'ID tidak valid.' });
+    const { rows } = await pool.query(
+      `SELECT s.*, u."Nama" AS creator_name
+       FROM schedules s
+       LEFT JOIN users u ON s."Divisi_ID" = u."ID"
+       WHERE s."ID" = $1`,
+      [id]
+    );
+    if (!rows.length) return res.status(404).json({ status: 'error', message: 'Jadwal tidak ditemukan.' });
+    res.json({ status: 'success', data: formatScheduleRow(rows[0], rows[0].creator_name) });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
 router.post(['/api/v1/schedules', '/api/schedules'], requireAuth, requireRole('Ketua', 'Admin', 'Pengurus'), async (req, res) => {
   try {
     const { judul_kegiatan, kategori, waktu, lokasi, keterangan } = req.body || {};

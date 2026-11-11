@@ -60,20 +60,38 @@ router.get('/api/v1/interukm/my-posts', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/api/v1/interukm/pending', requireAuth, async (req, res) => {
+router.get(['/api/v1/interukm/pending', '/api/v1/interukm/posts/pending'], requireAuth, async (req, res) => {
   try {
     const actorUkm = getUkmFromJobDesc(req.user.Job_Desc);
     const { rows } = await pool.query(
       `SELECT p.*, u."Nama" AS creator_name, u."Job_Desc" AS creator_job
        FROM interukm_posts p
        LEFT JOIN users u ON p."Created_By" = u."ID"
-       WHERE p."Status_Persetujuan" = 'Menunggu Verifikasi'
+       WHERE p."Status_Persetujuan" IN ('Menunggu Verifikasi', 'Pending')
        ORDER BY p."ID" DESC`
     );
     const filtered = actorUkm
       ? rows.filter(r => !r.creator_job || getUkmFromJobDesc(r.creator_job) === actorUkm)
       : rows;
     res.json({ status: 'success', data: filtered.map(r => formatInterUkmPost(r, req.user.ID)) });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
+router.get('/api/v1/interukm/:id', requireAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ status: 'error', message: 'ID tidak valid.' });
+    const { rows } = await pool.query(
+      `SELECT p.*, u."Nama" AS creator_name
+       FROM interukm_posts p
+       LEFT JOIN users u ON p."Created_By" = u."ID"
+       WHERE p."ID" = $1`,
+      [id]
+    );
+    if (!rows.length) return res.status(404).json({ status: 'error', message: 'Publikasi tidak ditemukan.' });
+    res.json({ status: 'success', data: formatInterUkmPost(rows[0], req.user.ID) });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
@@ -95,7 +113,7 @@ router.post(
 
       const extraParts = [];
       if (req.files?.foto?.[0]) {
-        extraParts.push(`BannerURL: /api/v1/interukm/files/${req.files.foto[0].filename}`);
+        extraParts.push(`FotoURL: /api/v1/interukm/files/${req.files.foto[0].filename}`);
       }
       if (req.files?.proposal?.[0]) {
         extraParts.push(`FileURL: /api/v1/interukm/files/${req.files.proposal[0].filename}`);
@@ -104,9 +122,9 @@ router.post(
       const actorUkm = getUkmFromJobDesc(req.user.Job_Desc) || ukm_pengirim || 'SIOMAS';
       const senderLabel = ukm_pengirim && ukm_pengirim.includes('(') ? ukm_pengirim : `${actorUkm}`;
 
-      // BR-02: If created by Ketua/Admin, auto-approved; if Pengurus, Menunggu Verifikasi
+      // BR-02: If created by Ketua/Admin, auto-approved; if Pengurus, Pending
       const isKetua = req.user.Role === 'Ketua' || req.user.Role === 'Admin';
-      const statusPersetujuan = isKetua ? 'Disetujui' : 'Menunggu Verifikasi';
+      const statusPersetujuan = isKetua ? 'Disetujui' : 'Pending';
 
       const { rows } = await pool.query(
         `INSERT INTO interukm_posts ("UKM_Pengirim", "Judul", "Isi_Pengumuman", "Status_Persetujuan", "Date", "Created_By", "Approved_By")
@@ -133,7 +151,7 @@ router.post(
   }
 );
 
-router.patch('/api/v1/interukm/posts/:id/approve', requireAuth, requireRole('Ketua', 'Admin'), async (req, res) => {
+async function handleApproveInterUkm(req, res) {
   try {
     const id = parseInt(req.params.id, 10);
     const { rows: oldRows } = await pool.query('SELECT * FROM interukm_posts WHERE "ID" = $1', [id]);
@@ -162,9 +180,12 @@ router.patch('/api/v1/interukm/posts/:id/approve', requireAuth, requireRole('Ket
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
-});
+}
 
-router.patch('/api/v1/interukm/posts/:id/reject', requireAuth, requireRole('Ketua', 'Admin'), async (req, res) => {
+router.post('/api/v1/interukm/posts/:id/approve', requireAuth, requireRole('Ketua', 'Admin'), handleApproveInterUkm);
+router.patch('/api/v1/interukm/posts/:id/approve', requireAuth, requireRole('Ketua', 'Admin'), handleApproveInterUkm);
+
+async function handleRejectInterUkm(req, res) {
   try {
     const id = parseInt(req.params.id, 10);
     const { rows: updated } = await pool.query(
@@ -178,7 +199,10 @@ router.patch('/api/v1/interukm/posts/:id/reject', requireAuth, requireRole('Ketu
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
-});
+}
+
+router.post('/api/v1/interukm/posts/:id/reject', requireAuth, requireRole('Ketua', 'Admin'), handleRejectInterUkm);
+router.patch('/api/v1/interukm/posts/:id/reject', requireAuth, requireRole('Ketua', 'Admin'), handleRejectInterUkm);
 
 router.post('/api/v1/interukm/posts/:id/interest', requireAuth, async (req, res) => {
   const id = parseInt(req.params.id, 10);

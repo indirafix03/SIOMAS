@@ -37,6 +37,133 @@ function formatDateTimeLabel(isoStr) {
   return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+function formatDateOnly(isoStr) {
+  if (!isoStr) return '-';
+  const d = new Date(isoStr.length === 10 ? `${isoStr}T00:00:00` : isoStr);
+  if (isNaN(d.getTime())) return isoStr;
+  return `${DAYS_ID[d.getDay()]}, ${d.getDate()} ${MONTHS_FULL[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function formatTimeOnly(isoStr) {
+  if (!isoStr) return '09:00 WITA';
+  if (/^\d{1,2}:\d{2}/.test(isoStr)) {
+    return isoStr.toUpperCase().includes('WITA') ? isoStr : `${isoStr} WITA`;
+  }
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return '09:00 WITA';
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} WITA`;
+}
+
+// Modal: Lihat Semua Pengumuman
+function ModalSemuaPengumuman({ announcements, onClose, onSelect }) {
+  const [filterTab, setFilterTab] = useState('Semua');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filtered = announcements.filter(item => {
+    if (filterTab === 'Penting' && !item.is_important) return false;
+    if (filterTab === 'Belum Dibaca' && item.is_read) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      return (
+        (item.judul || '').toLowerCase().includes(q) ||
+        (item.isi || '').toLowerCase().includes(q) ||
+        (item.category || '').toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
+
+  return (
+    <div className="portal-modal-backdrop" onClick={onClose}>
+      <div
+        className="portal-modal-dialog wide"
+        onClick={e => e.stopPropagation()}
+        style={{ maxWidth: '720px', maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}
+      >
+        <div className="portal-modal-header">
+          <div>
+            <h3 className="portal-modal-title">Daftar Seluruh Pengumuman ({announcements.length})</h3>
+            <p className="portal-modal-subtitle">Klik salah satu pengumuman untuk membaca detail lengkapnya.</p>
+          </div>
+          <button type="button" className="portal-modal-close-btn" onClick={onClose}>
+            <X size={20} />
+          </button>
+        </div>
+
+        <div style={{ padding: '14px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {['Semua', 'Penting', 'Belum Dibaca'].map(tab => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setFilterTab(tab)}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '999px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  border: filterTab === tab ? '1px solid #4F46E5' : '1px solid #E2E8F0',
+                  background: filterTab === tab ? '#EEF2FF' : '#FFFFFF',
+                  color: filterTab === tab ? '#4F46E5' : '#475569',
+                  cursor: 'pointer'
+                }}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+          <input
+            type="text"
+            className="portal-input"
+            placeholder="Cari judul pengumuman..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ maxWidth: '240px', padding: '7px 12px', fontSize: '13px' }}
+          />
+        </div>
+
+        <div className="portal-modal-body" style={{ overflowY: 'auto', padding: '20px 24px' }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94A3B8', fontSize: '13.5px' }}>
+              Tidak ada pengumuman yang sesuai dengan filter.
+            </div>
+          ) : (
+            <div className="announcement-list">
+              {filtered.map(item => (
+                <div
+                  key={item.id}
+                  className="announcement-item-card"
+                  onClick={() => {
+                    onClose();
+                    onSelect && onSelect(item);
+                  }}
+                >
+                  <div className={`announcement-icon-badge ${item.is_important ? 'announcement-icon-red' : item.category === 'Acara' ? 'announcement-icon-blue' : 'announcement-icon-gray'}`}>
+                    {item.category === 'Administrasi' ? <FileText size={18} /> : <Bell size={18} />}
+                  </div>
+                  <div className="announcement-body">
+                    <div className="announcement-tags-row">
+                      {item.is_important && <span className="tag-badge tag-red">Penting</span>}
+                      <span className="tag-badge tag-gray">{item.category}</span>
+                      <span className="announcement-time">{item.tanggal} • {item.waktu}</span>
+                      {!item.is_read && <span className="announcement-unread-dot" />}
+                    </div>
+                    <h4 className="announcement-title">{item.judul}</h4>
+                    <p className="announcement-snippet">{item.isi}</p>
+                    <button type="button" className="portal-link-btn" style={{ fontSize: '12px' }}>
+                      Lihat selengkapnya <ChevronRight size={13} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Modal: Buat Pengumuman Baru
 function ModalBuatPengumuman({ onClose, onSubmit, submitting }) {
   const [form, setForm] = useState({
@@ -190,6 +317,7 @@ function ModalBuatPengumuman({ onClose, onSubmit, submitting }) {
 
 export default function KetuaBeranda({ currentUser, onNavigate, onSelectAnnouncement, showToast }) {
   const [showModalPengumuman, setShowModalPengumuman] = useState(false);
+  const [showAllAnnouncements, setShowAllAnnouncements] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
   const [schedules, setSchedules] = useState([]);
@@ -219,12 +347,14 @@ export default function KetuaBeranda({ currentUser, onNavigate, onSelectAnnounce
       judul: item.judul,
       isi: item.isi,
       is_important: item.is_important,
-      category: item.is_important ? 'Manajemen' : 'Umum',
+      category: item.kategori || (item.is_important ? 'Manajemen' : 'Umum'),
       time: formatDateTimeLabel(item.created_at),
       is_read: item.is_read !== undefined ? item.is_read : true,
-      tanggal: formatDateTimeLabel(item.created_at),
-      waktu: 'Sesuai jadwal',
-      lokasi: 'Kampus SIOMAS',
+      created_at: item.created_at,
+      read_count: item.read_count || 1,
+      tanggal: item.tanggal || formatDateOnly(item.created_at),
+      waktu: item.waktu && item.waktu !== 'Sesuai jadwal' ? item.waktu : formatTimeOnly(item.created_at),
+      lokasi: item.lokasi || 'Kampus SIOMAS',
       peserta: 'Seluruh anggota aktif',
       publisher: `${item.author_name || 'Admin SIOMAS'} • ${formatDateTimeLabel(item.created_at)}`,
       authorName: item.author_name || 'Admin SIOMAS',
@@ -266,6 +396,9 @@ export default function KetuaBeranda({ currentUser, onNavigate, onSelectAnnounce
     const res = await announcementsApi.create({
       judul: form.judul.trim(),
       isi: form.isi.trim(),
+      kategori: form.kategori || 'Umum',
+      tanggal_kegiatan: form.tanggalKegiatan || form.tanggalPub || '',
+      waktu_kegiatan: form.waktuPub || '',
       is_important: form.isPenting,
       notify_email: form.isPenting
     });
@@ -311,6 +444,13 @@ export default function KetuaBeranda({ currentUser, onNavigate, onSelectAnnounce
           onClose={() => setShowModalPengumuman(false)}
           onSubmit={handleCreateAnnouncement}
           submitting={submitting}
+        />
+      )}
+      {showAllAnnouncements && (
+        <ModalSemuaPengumuman
+          announcements={announcements}
+          onClose={() => setShowAllAnnouncements(false)}
+          onSelect={onSelectAnnouncement}
         />
       )}
 
@@ -380,8 +520,8 @@ export default function KetuaBeranda({ currentUser, onNavigate, onSelectAnnounce
               <p className="portal-card-subtitle">Informasi penting untuk anggota organisasi</p>
             </div>
             {announcements.length > 0 && (
-              <button type="button" className="portal-link-btn" onClick={() => onSelectAnnouncement && onSelectAnnouncement(announcements[0])}>
-                Lihat semua <ChevronRight size={14} />
+              <button type="button" className="portal-link-btn" onClick={() => setShowAllAnnouncements(true)}>
+                Lihat semua ({announcements.length}) <ChevronRight size={14} />
               </button>
             )}
           </div>
@@ -392,7 +532,7 @@ export default function KetuaBeranda({ currentUser, onNavigate, onSelectAnnounce
                 Belum ada pengumuman yang dipublikasikan. Klik <strong>Buat Pengumuman</strong> untuk menambahkan.
               </div>
             ) : (
-              announcements.map(item => (
+              announcements.slice(0, 4).map(item => (
                 <div key={item.id} className="announcement-item-card" onClick={() => onSelectAnnouncement && onSelectAnnouncement(item)}>
                   <div className={`announcement-icon-badge ${item.is_important ? 'announcement-icon-red' : item.category === 'Acara' ? 'announcement-icon-blue' : 'announcement-icon-gray'}`}>
                     {item.category === 'Administrasi' ? <FileText size={18} /> : <Bell size={18} />}

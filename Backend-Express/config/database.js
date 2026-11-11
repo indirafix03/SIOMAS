@@ -24,6 +24,17 @@ const sequelize = new Sequelize(DATABASE_URL, {
   }
 });
 
+// Ensure optional schedule/date/time metadata columns exist on announcements table
+pool
+  .query(`
+    ALTER TABLE announcements
+      ADD COLUMN IF NOT EXISTS "Kategori" VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS "Tanggal_Kegiatan" VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS "Waktu_Kegiatan" VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS "Lokasi" VARCHAR(255);
+  `)
+  .catch(() => {});
+
 module.exports = {
   PORT,
   JWT_SECRET,

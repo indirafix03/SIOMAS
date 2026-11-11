@@ -135,7 +135,7 @@ router.get(['/api/v1/lpj-validation/pending', '/api/documents/pending'], require
   }
 });
 
-router.patch(['/api/v1/lpj-validation/:id/validate', '/api/documents/:id/status'], requireAuth, requireRole('Ketua', 'Admin'), async (req, res) => {
+async function handleValidateLpj(req, res) {
   try {
     const id = parseInt(req.params.id, 10);
     const { status, catatan_revisi } = req.body || {};
@@ -169,6 +169,30 @@ router.patch(['/api/v1/lpj-validation/:id/validate', '/api/documents/:id/status'
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
+}
+
+router.post(['/api/v1/lpj-validation/:id/validate', '/api/documents/:id/status'], requireAuth, requireRole('Ketua', 'Admin'), handleValidateLpj);
+router.patch(['/api/v1/lpj-validation/:id/validate', '/api/documents/:id/status'], requireAuth, requireRole('Ketua', 'Admin'), handleValidateLpj);
+router.put(['/api/v1/lpj-validation/:id/validate', '/api/documents/:id/status'], requireAuth, requireRole('Ketua', 'Admin'), handleValidateLpj);
+
+router.get('/api/v1/lpj-validation/history', requireAuth, async (req, res) => {
+  try {
+    const actorUkm = getUkmFromJobDesc(req.user.Job_Desc);
+    const { rows } = await pool.query(
+      `SELECT d.*, u."Nama" AS uploader_name, u."Job_Desc" AS uploader_job, a."Nama" AS approver_name
+       FROM documents d
+       LEFT JOIN users u ON d."Uploaded_By" = u."ID"
+       LEFT JOIN users a ON d."Approved_By" = a."ID"
+       WHERE d."Kategori" = 'LPJ' AND d."Status" IN ('Approved', 'Revisi') AND d."Is_Deleted" = FALSE
+       ORDER BY d."Updated_At" DESC NULLS LAST, d."ID" DESC`
+    );
+    const filtered = actorUkm
+      ? rows.filter(r => !r.uploader_job || getUkmFromJobDesc(r.uploader_job) === actorUkm)
+      : rows;
+    res.json({ status: 'success', data: filtered.map(formatDocRow) });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
 });
 
 // UC-08: Sipakamase Verification
@@ -195,7 +219,7 @@ router.get('/api/v1/sipakamase', requireAuth, async (req, res) => {
   }
 });
 
-router.patch('/api/v1/sipakamase/:id/verify', requireAuth, requireRole('Ketua', 'Admin'), async (req, res) => {
+async function handleVerifySipakamase(req, res) {
   try {
     const id = parseInt(req.params.id, 10);
     const { status, catatan } = req.body || {};
@@ -223,6 +247,25 @@ router.patch('/api/v1/sipakamase/:id/verify', requireAuth, requireRole('Ketua', 
     });
 
     res.json({ status: 'success', message: 'Dokumen Sipakamase berhasil diverifikasi.', data: afterData });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+}
+
+router.post('/api/v1/sipakamase/:id/verify', requireAuth, requireRole('Ketua', 'Admin'), handleVerifySipakamase);
+router.patch('/api/v1/sipakamase/:id/verify', requireAuth, requireRole('Ketua', 'Admin'), handleVerifySipakamase);
+router.put('/api/v1/sipakamase/:id/verify', requireAuth, requireRole('Ketua', 'Admin'), handleVerifySipakamase);
+
+router.post('/api/v1/sipakamase/upload', requireAuth, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ status: 'error', message: 'Berkas Sipakamase wajib diunggah.' });
+    const namaBerkas = (req.body.nama_berkas || req.file.originalname).trim();
+    const { rows } = await pool.query(
+      `INSERT INTO documents ("Nama_Berkas", "Kategori", "Path_File", "Status", "Is_Deleted", "Uploaded_By", "Created_At")
+       VALUES ($1, 'Sipakamase', $2, 'Draft', FALSE, $3, NOW()) RETURNING *`,
+      [namaBerkas, req.file.filename, req.user.ID]
+    );
+    res.status(201).json({ status: 'success', message: 'Berkas Sipakamase berhasil diunggah.', data: formatDocRow(rows[0]) });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
@@ -384,8 +427,8 @@ async function updateDocCategory(req, res) {
   }
 }
 
-router.patch(['/api/v1/documents/:id/category'], requireAuth, updateDocCategory);
-router.put(['/api/v1/documents/:id/kategori', '/api/documents/:id/kategori'], requireAuth, updateDocCategory);
+router.patch(['/api/v1/documents/:id/category', '/api/v1/documents/:id'], requireAuth, updateDocCategory);
+router.put(['/api/v1/documents/:id/kategori', '/api/v1/documents/:id', '/api/documents/:id/kategori'], requireAuth, updateDocCategory);
 
 // UC-10: Soft-Delete Document
 router.delete(['/api/v1/documents/:id', '/api/documents/:id'], requireAuth, async (req, res) => {
