@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { CheckSquare, Plus } from 'lucide-react';
+import { notificationsApi } from '../../services/api.js';
 
 const MEMBERS = [
   { id: 1, name: 'Dewi Lestari', initials: 'De', color: '#6366F1' },
@@ -51,7 +52,7 @@ export default function PDDelegasi({ showToast }) {
     showToast('Presensi rapat divisi berhasil disimpan.', 'success');
   };
 
-  const handleSaveDelegasi = (e) => {
+  const handleSaveDelegasi = async (e) => {
     e.preventDefault();
     if (!formDelegasi.judulTugas.trim() || !formDelegasi.delegasikanKepada) {
       showToast('Harap isi judul tugas dan pilih penerima.', 'warning');
@@ -66,6 +67,15 @@ export default function PDDelegasi({ showToast }) {
       done: false
     };
     setTasks([...tasks, newTask]);
+    if (formDelegasi.kirimNotifikasi) {
+      await notificationsApi.createDelegation({
+        judulTugas: formDelegasi.judulTugas,
+        deskripsiTugas: formDelegasi.deskripsiTugas,
+        delegasikanKepada: formDelegasi.delegasikanKepada,
+        prioritas: formDelegasi.prioritas,
+        tenggat: formDelegasi.tenggat || 'TBD'
+      });
+    }
     showToast(`Tugas "${formDelegasi.judulTugas}" berhasil didelegasikan ke ${formDelegasi.delegasikanKepada}.`, 'success');
     setShowModalDelegasi(false);
     setFormDelegasi({ judulTugas: '', deskripsiTugas: '', delegasikanKepada: '', prioritas: 'Normal', tanggalMulai: '', tenggat: '', kirimNotifikasi: true });

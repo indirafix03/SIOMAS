@@ -3,8 +3,8 @@ const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
 
-// Ensure uploads directory exists (shared with Backend/uploads)
-const UPLOAD_DIR = path.resolve(__dirname, '..', process.env.UPLOAD_FOLDER || '../Backend/uploads');
+// Ensure uploads directory exists
+const UPLOAD_DIR = path.resolve(__dirname, '..', process.env.UPLOAD_FOLDER || './uploads');
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }

@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Users, CheckSquare, Calendar, Eye, X } from 'lucide-react';
+import { notificationsApi } from '../../services/api.js';
 
 // Modal Buat Delegasi Tugas Baru
 function ModalBuatDelegasi({ onClose, onSave, showToast }) {
@@ -15,7 +16,7 @@ function ModalBuatDelegasi({ onClose, onSave, showToast }) {
   });
   const fileInputRef = useRef(null);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.judulTugas.trim()) {
       showToast('Harap isi Judul Tugas.', 'warning');
@@ -24,6 +25,15 @@ function ModalBuatDelegasi({ onClose, onSave, showToast }) {
     if (!form.delegasikanKepada) {
       showToast('Harap pilih anggota penerima tugas.', 'warning');
       return;
+    }
+    if (form.kirimNotifikasi) {
+      await notificationsApi.createDelegation({
+        judulTugas: form.judulTugas,
+        deskripsiTugas: form.deskripsiTugas,
+        delegasikanKepada: form.delegasikanKepada,
+        prioritas: form.prioritas,
+        tenggat: form.tenggat || 'Segera'
+      });
     }
     onSave(form);
     showToast(`Tugas "${form.judulTugas}" berhasil didelegasikan ke ${form.delegasikanKepada}.`, 'success');

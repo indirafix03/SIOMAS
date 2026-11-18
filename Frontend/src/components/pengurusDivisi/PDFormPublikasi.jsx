@@ -29,9 +29,15 @@ export default function PDFormPublikasi({ onBack, onSubmitSuccess, showToast }) 
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const ext = file.name.includes('.') ? `.${file.name.split('.').pop().toLowerCase()}` : '';
+    if (ext !== '.pdf') {
+      e.target.value = '';
+      showToast && showToast(`Format lampiran "${file.name}" ditolak! Pengurus hanya diizinkan mengunggah dokumen PDF (.pdf).`, 'error');
+      return;
+    }
     setProposalFileObj(file);
     setForm(prev => ({ ...prev, fileName: `${file.name} (${(file.size / 1024).toFixed(1)} KB)` }));
-    showToast && showToast(`Berkas "${file.name}" berhasil dilampirkan.`, 'success');
+    showToast && showToast(`Berkas PDF "${file.name}" berhasil dilampirkan.`, 'success');
   };
 
   const handleCoverSelect = (e) => {
@@ -214,7 +220,7 @@ export default function PDFormPublikasi({ onBack, onSubmitSuccess, showToast }) 
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,.doc,.docx"
+            accept=".pdf"
             style={{ display: 'none' }}
             onChange={handleFileSelect}
           />
@@ -228,7 +234,7 @@ export default function PDFormPublikasi({ onBack, onSubmitSuccess, showToast }) 
               <div className="dropzone-text">
                 <h5>Lampirkan proposal kolaborasi</h5>
                 <p style={{ color: form.fileName ? '#4F46E5' : undefined, fontWeight: form.fileName ? 600 : undefined }}>
-                  {form.fileName || 'PDF atau DOCX • Maksimal 10 MB'}
+                  {form.fileName || 'Khusus Format PDF (.pdf) • Maksimal 10 MB'}
                 </p>
               </div>
             </div>

@@ -36,6 +36,23 @@ app.use(documentRoutes);      // UC-06, UC-08, UC-09, UC-10: LPJ, Sipakamase, Va
 app.use(interukmRoutes);      // UC-11: Hub Inter-UKM & Cross-UKM Collaboration (BR-02)
 app.use(notificationRoutes);  // UC-07 & UC-12: Coordinator Stats, Email Logs, Scheduler, Webhook & Audit Logs
 
+// Global Error Handler (NFR-PERF-02: Max 10 MB File Size Validation)
+app.use((err, req, res, next) => {
+  if (err && (err.code === 'LIMIT_FILE_SIZE' || err.type === 'entity.too.large')) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Ukuran File Melebihi Batas 10 MB'
+    });
+  }
+  if (err) {
+    return res.status(400).json({
+      status: 'error',
+      message: err.message || 'Permintaan tidak valid.'
+    });
+  }
+  next();
+});
+
 // Start UC-12 Hourly Email Reminder Cron Job
 startEmailReminderCron();
 

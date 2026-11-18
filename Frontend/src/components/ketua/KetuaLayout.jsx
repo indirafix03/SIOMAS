@@ -16,6 +16,7 @@ import {
   X
 } from 'lucide-react';
 import { lpjApi, sipakamaseApi, interUkmApi, apiFetch } from '../../services/api.js';
+import NotificationBellPopup from '../NotificationBellPopup.jsx';
 
 export default function KetuaLayout({
   activeView,
@@ -231,15 +232,11 @@ export default function KetuaLayout({
               <span className="value">{currentUser?.ukm ? `Ketua • ${currentUser.ukm}` : 'Ketua UKM'}</span>
             </div>
 
-            <button
-              type="button"
-              className="portal-notif-btn"
-              title="Notifikasi"
-              onClick={() => onNavigate('k-log-notifikasi')}
-            >
-              <Bell size={18} />
-              {unreadCount > 0 && <span className="portal-notif-dot" />}
-            </button>
+            <NotificationBellPopup
+              currentUser={currentUser}
+              activeView={activeView}
+              onNavigate={onNavigate}
+            />
 
             <div
               className="portal-user-chip"

@@ -33,7 +33,7 @@ pool
       ADD COLUMN IF NOT EXISTS "Waktu_Kegiatan" VARCHAR(100),
       ADD COLUMN IF NOT EXISTS "Lokasi" VARCHAR(255);
   `)
-  .catch(() => {});
+  .catch(() => { });
 
 module.exports = {
   PORT,

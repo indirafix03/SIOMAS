@@ -26,10 +26,10 @@ export default function AnggotaHubInter({ onNavigate, onSelectPost, showToast })
     ]);
 
     const feedList = feedRes.ok && feedRes.data?.data ? feedRes.data.data : [];
-    const myList = myRes.ok && myRes.data?.data ? myRes.data.data : [];
-    const mergedMap = new Map();
-    [...myList, ...feedList].forEach(item => mergedMap.set(item.id, parseInterUkmPost(item)));
-    setPosts(Array.from(mergedMap.values()));
+    const publishedPosts = feedList
+      .map(parseInterUkmPost)
+      .filter(p => p.isPublished && !p.isRejected);
+    setPosts(publishedPosts);
 
     const schedList = schedRes.ok && schedRes.data?.data ? schedRes.data.data : [];
     const clsList = ['blue', 'green', ''];

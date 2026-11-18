@@ -8,6 +8,131 @@ const { UPLOAD_DIR, upload } = require('../config/upload');
 const { getUkmFromJobDesc, recordAuditLog } = require('../utils/helpers');
 const { requireAuth, requireRole } = require('../middlewares/authMiddleware');
 
+function removeUploadedTempFile(file) {
+  if (file && file.path && fs.existsSync(file.path)) {
+    try {
+      fs.unlinkSync(file.path);
+    } catch (_) {}
+  }
+}
+
+function validateUploadedDocumentByRole(req, res, file) {
+  if (!file) return true;
+  const ext = path.extname(file.originalname || file.filename || '').toLowerCase();
+  const role = req.user?.Role || 'Anggota';
+
+  if (role === 'Pengurus') {
+    if (ext !== '.pdf') {
+      removeUploadedTempFile(file);
+      res.status(400).json({
+        status: 'error',
+        message: `Format berkas (${ext || 'tanpa ekstensi'}) ditolak. Pengurus Divisi hanya diizinkan mengunggah dokumen berformat PDF (.pdf).`
+      });
+      return false;
+    }
+    return true;
+  }
+
+  // Ketua / Admin diperbolehkan .pdf dan .zip
+  if (!['.pdf', '.zip'].includes(ext)) {
+    removeUploadedTempFile(file);
+    res.status(400).json({
+      status: 'error',
+      message: `Format berkas (${ext || 'tanpa ekstensi'}) tidak didukung. Ketua/Admin hanya dapat mengunggah berkas .pdf atau .zip.`
+    });
+    return false;
+  }
+  return true;
+}
+
+function resolveDocumentFilePath(rawPathFile) {
+  if (!rawPathFile) return null;
+  const normalizedRel = String(rawPathFile).replace(/^[/\\]+/, '');
+  const baseName = path.basename(normalizedRel);
+
+  const candidates = [
+    path.join(UPLOAD_DIR, normalizedRel),
+    path.join(UPLOAD_DIR, baseName),
+    path.join(UPLOAD_DIR, 'lpj', baseName),
+    path.join(UPLOAD_DIR, 'sipakamase', baseName),
+    path.join(UPLOAD_DIR, 'proposal', baseName),
+    path.join(UPLOAD_DIR, 'surat', baseName)
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      try {
+        const stat = fs.statSync(candidate);
+        // Abaikan stub palsu < 150 byte yang bukan PDF utuh
+        if (stat.isFile() && stat.size > 150) {
+          return candidate;
+        }
+      } catch (_) {}
+    }
+  }
+  return null;
+}
+
+function buildValidPdfBuffer(doc) {
+  const sanitizePdfText = (str) =>
+    String(str || '-')
+      .replace(/[^\x20-\x7E]/g, ' ')
+      .replace(/[()\\]/g, '\\$&');
+
+  const title = sanitizePdfText(doc.Nama_Berkas || 'Dokumen SIOMAS');
+  const kategori = sanitizePdfText(doc.Kategori || 'LPJ');
+  const status = sanitizePdfText(doc.Status || 'Draft');
+  const catatan = sanitizePdfText(doc.Catatan_Revisi || 'Tidak ada catatan revisi');
+  const tanggal = sanitizePdfText(
+    doc.Created_At ? new Date(doc.Created_At).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)
+  );
+
+  const streamContent = [
+    'BT',
+    '/F1 16 Tf',
+    '50 760 Td',
+    '(DOKUMEN RESMI SIOMAS - SISTEM ORGANISASI MAHASISWA) Tj',
+    '/F1 12 Tf',
+    '0 -32 Td',
+    `(Judul Dokumen : ${title}) Tj`,
+    '0 -20 Td',
+    `(Kategori      : ${kategori}) Tj`,
+    '0 -20 Td',
+    `(Status Berkas : ${status}) Tj`,
+    '0 -20 Td',
+    `(Tanggal       : ${tanggal}) Tj`,
+    '0 -20 Td',
+    `(Catatan       : ${catatan}) Tj`,
+    '0 -36 Td',
+    '(Dokumen ini telah tercatat di dalam basis data SIOMAS Neon Cloud.) Tj',
+    'ET'
+  ].join('\n');
+
+  const objects = [
+    '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+    '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+    '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n',
+    '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n',
+    `5 0 obj\n<< /Length ${Buffer.byteLength(streamContent, 'utf8')} >>\nstream\n${streamContent}\nendstream\nendobj\n`
+  ];
+
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  for (const obj of objects) {
+    offsets.push(Buffer.byteLength(pdf, 'utf8'));
+    pdf += obj;
+  }
+
+  const xrefOffset = Buffer.byteLength(pdf, 'utf8');
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += '0000000000 65535 f \n';
+  for (let i = 1; i <= objects.length; i++) {
+    pdf += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  return Buffer.from(pdf, 'utf8');
+}
+
 function formatDocRow(d) {
   return {
     id: d.ID,
@@ -32,22 +157,44 @@ router.post(['/api/v1/lpj/upload', '/api/documents/upload'], requireAuth, requir
     if (!req.file) {
       return res.status(400).json({ status: 'error', message: 'Berkas wajib diunggah.' });
     }
+    if (!validateUploadedDocumentByRole(req, res, req.file)) return;
     const namaBerkas = (req.body.nama_berkas || req.file.originalname).trim();
     const kategori = req.body.kategori || 'LPJ';
-    const { rows } = await pool.query(
-      `INSERT INTO documents ("Nama_Berkas", "Kategori", "Path_File", "Status", "Is_Deleted", "Uploaded_By", "Created_At")
-       VALUES ($1, $2, $3, 'Draft', FALSE, $4, NOW()) RETURNING *`,
-      [namaBerkas, kategori, req.file.filename, req.user.ID]
+
+    // Jika Pengurus memiliki dokumen berstatus 'Revisi' pada kategori yang sama, perbarui dokumen tersebut agar tidak menyisakan status Revisi lama
+    const { rows: existingRevisi } = await pool.query(
+      `SELECT * FROM documents
+       WHERE "Uploaded_By" = $1 AND "Kategori" = $2 AND "Status" = 'Revisi' AND "Is_Deleted" = FALSE
+       ORDER BY "ID" DESC LIMIT 1`,
+      [req.user.ID, kategori]
     );
-    const doc = rows[0];
+
+    let doc;
+    if (existingRevisi.length > 0) {
+      const targetRev = existingRevisi[0];
+      const { rows: updatedRows } = await pool.query(
+        `UPDATE documents
+         SET "Nama_Berkas" = $1, "Path_File" = $2, "Status" = 'Draft', "Catatan_Revisi" = '', "Updated_By" = $3, "Updated_At" = NOW()
+         WHERE "ID" = $4 RETURNING *`,
+        [namaBerkas, req.file.filename, req.user.ID, targetRev.ID]
+      );
+      doc = updatedRows[0];
+    } else {
+      const { rows } = await pool.query(
+        `INSERT INTO documents ("Nama_Berkas", "Kategori", "Path_File", "Status", "Is_Deleted", "Uploaded_By", "Created_At")
+         VALUES ($1, $2, $3, 'Draft', FALSE, $4, NOW()) RETURNING *`,
+        [namaBerkas, kategori, req.file.filename, req.user.ID]
+      );
+      doc = rows[0];
+    }
     doc.uploader_name = req.user.Nama;
 
     await recordAuditLog({
       userId: req.user.ID,
-      aksi: `INSERT_${kategori.toUpperCase()}`,
+      aksi: existingRevisi.length > 0 ? 'RESUBMIT_LPJ' : `INSERT_${kategori.toUpperCase()}`,
       modul: 'documents',
       recordId: doc.ID,
-      before: null,
+      before: existingRevisi.length > 0 ? formatDocRow(existingRevisi[0]) : null,
       after: formatDocRow(doc),
       summary: `Mengunggah berkas ${kategori}: ${namaBerkas}`,
       req
@@ -62,6 +209,7 @@ router.post(['/api/v1/lpj/upload', '/api/documents/upload'], requireAuth, requir
 // UC-06: Update / Resubmit Revised LPJ
 router.put(['/api/v1/lpj/:id'], requireAuth, requireRole('Pengurus', 'Ketua', 'Admin'), upload.single('file'), async (req, res) => {
   try {
+    if (req.file && !validateUploadedDocumentByRole(req, res, req.file)) return;
     const id = parseInt(req.params.id, 10);
     const { rows: oldRows } = await pool.query('SELECT * FROM documents WHERE "ID" = $1', [id]);
     if (!oldRows.length) return res.status(404).json({ status: 'error', message: 'Dokumen tidak ditemukan.' });
@@ -154,6 +302,16 @@ async function handleValidateLpj(req, res) {
     );
     const afterData = formatDocRow(updated[0]);
 
+    // Jika LPJ disetujui (Approved), bersihkan sisa dokumen berstatus 'Revisi' lama milik pengunggah yang sama agar banner revisi hilang
+    if (status === 'Approved' && oldRows[0].Uploaded_By) {
+      await pool.query(
+        `UPDATE documents
+         SET "Is_Deleted" = TRUE, "Updated_By" = $1, "Updated_At" = NOW()
+         WHERE "Uploaded_By" = $2 AND "Kategori" = 'LPJ' AND "Status" = 'Revisi' AND "ID" <> $3`,
+        [req.user.ID, oldRows[0].Uploaded_By, id]
+      );
+    }
+
     await recordAuditLog({
       userId: req.user.ID,
       aksi: status === 'Approved' ? 'APPROVE_LPJ' : 'REVISE_LPJ',
@@ -227,13 +385,23 @@ async function handleVerifySipakamase(req, res) {
     if (!oldRows.length) return res.status(404).json({ status: 'error', message: 'Dokumen Sipakamase tidak ditemukan.' });
 
     const beforeData = formatDocRow(oldRows[0]);
+    const finalStatus = status || 'Approved';
     const { rows: updated } = await pool.query(
       `UPDATE documents
        SET "Status" = $1, "Catatan_Revisi" = $2, "Approved_By" = $3, "Updated_By" = $3, "Updated_At" = NOW()
        WHERE "ID" = $4 RETURNING *`,
-      [status || 'Approved', catatan || '', req.user.ID, id]
+      [finalStatus, catatan || '', req.user.ID, id]
     );
     const afterData = formatDocRow(updated[0]);
+
+    if (finalStatus === 'Approved' && oldRows[0].Uploaded_By) {
+      await pool.query(
+        `UPDATE documents
+         SET "Is_Deleted" = TRUE, "Updated_By" = $1, "Updated_At" = NOW()
+         WHERE "Uploaded_By" = $2 AND "Kategori" = 'Sipakamase' AND "Status" = 'Revisi' AND "ID" <> $3`,
+        [req.user.ID, oldRows[0].Uploaded_By, id]
+      );
+    }
 
     await recordAuditLog({
       userId: req.user.ID,
@@ -259,13 +427,32 @@ router.put('/api/v1/sipakamase/:id/verify', requireAuth, requireRole('Ketua', 'A
 router.post('/api/v1/sipakamase/upload', requireAuth, requireRole('Pengurus', 'Ketua', 'Admin'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ status: 'error', message: 'Berkas Sipakamase wajib diunggah.' });
+    if (!validateUploadedDocumentByRole(req, res, req.file)) return;
     const namaBerkas = (req.body.nama_berkas || req.file.originalname).trim();
-    const { rows } = await pool.query(
-      `INSERT INTO documents ("Nama_Berkas", "Kategori", "Path_File", "Status", "Is_Deleted", "Uploaded_By", "Created_At")
-       VALUES ($1, 'Sipakamase', $2, 'Draft', FALSE, $3, NOW()) RETURNING *`,
-      [namaBerkas, req.file.filename, req.user.ID]
+    const { rows: existingSipaRevisi } = await pool.query(
+      `SELECT * FROM documents
+       WHERE "Uploaded_By" = $1 AND "Kategori" = 'Sipakamase' AND "Status" = 'Revisi' AND "Is_Deleted" = FALSE
+       ORDER BY "ID" DESC LIMIT 1`,
+      [req.user.ID]
     );
-    res.status(201).json({ status: 'success', message: 'Berkas Sipakamase berhasil diunggah.', data: formatDocRow(rows[0]) });
+    let sipaDoc;
+    if (existingSipaRevisi.length > 0) {
+      const { rows: updatedRows } = await pool.query(
+        `UPDATE documents
+         SET "Nama_Berkas" = $1, "Path_File" = $2, "Status" = 'Draft', "Catatan_Revisi" = '', "Updated_By" = $3, "Updated_At" = NOW()
+         WHERE "ID" = $4 RETURNING *`,
+        [namaBerkas, req.file.filename, req.user.ID, existingSipaRevisi[0].ID]
+      );
+      sipaDoc = updatedRows[0];
+    } else {
+      const { rows } = await pool.query(
+        `INSERT INTO documents ("Nama_Berkas", "Kategori", "Path_File", "Status", "Is_Deleted", "Uploaded_By", "Created_At")
+         VALUES ($1, 'Sipakamase', $2, 'Draft', FALSE, $3, NOW()) RETURNING *`,
+        [namaBerkas, req.file.filename, req.user.ID]
+      );
+      sipaDoc = rows[0];
+    }
+    res.status(201).json({ status: 'success', message: 'Berkas Sipakamase berhasil diunggah.', data: formatDocRow(sipaDoc) });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
@@ -303,6 +490,7 @@ router.get(['/api/v1/documents', '/api/documents'], requireAuth, async (req, res
 router.post(['/api/v1/documents/upload'], requireAuth, requireRole('Pengurus', 'Ketua', 'Admin'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ status: 'error', message: 'Berkas wajib dipilih.' });
+    if (!validateUploadedDocumentByRole(req, res, req.file)) return;
     const namaBerkas = (req.body.nama_berkas || req.file.originalname).trim();
     const kategori = req.body.kategori || 'Surat';
     const initStatus = req.user.Role === 'Ketua' || req.user.Role === 'Admin' ? 'Approved' : 'Draft';
@@ -360,19 +548,41 @@ router.get(['/api/v1/documents/bundle', '/api/documents/bundle'], requireAuth, a
     const archive = archiver('zip', { zlib: { level: 9 } });
     archive.pipe(res);
 
+    const manifestLines = [
+      '====================================================================',
+      'MANIFEST ARSIP DOKUMEN SIOMAS (SISTEM ORGANISASI MAHASISWA)',
+      `Kategori Filter : ${kategori && kategori !== 'Semua' ? kategori : 'Semua Dokumen'}`,
+      `Diunduh Oleh    : ${req.user.Nama} (${req.user.Role})`,
+      `Total Dokumen   : ${docs.length}`,
+      `Waktu Unduh     : ${new Date().toISOString()}`,
+      '====================================================================',
+      ''
+    ];
+
     for (const d of docs) {
-      const fullPath = path.join(UPLOAD_DIR, path.basename(d.Path_File || ''));
-      const ext = path.extname(d.Path_File || '') || '.pdf';
+      const resolvedPath = resolveDocumentFilePath(d.Path_File);
+      const ext = resolvedPath ? path.extname(resolvedPath) : '.pdf';
       const safeName = `${d.ID}_${(d.Nama_Berkas || 'Dokumen').replace(/[^a-zA-Z0-9_-]/g, '_')}${ext}`;
-      if (fs.existsSync(fullPath)) {
-        archive.file(fullPath, { name: safeName });
+      manifestLines.push(`- [ID #${d.ID}] ${d.Nama_Berkas} | Kategori: ${d.Kategori} | Status: ${d.Status} | File: ${safeName}`);
+      if (resolvedPath) {
+        archive.file(resolvedPath, { name: safeName });
       } else {
-        archive.append(
-          `Dokumen SIOMAS\nID: ${d.ID}\nNama Berkas: ${d.Nama_Berkas}\nKategori: ${d.Kategori}\nStatus: ${d.Status}\n`,
-          { name: safeName }
-        );
+        archive.append(buildValidPdfBuffer(d), { name: `${d.ID}_${(d.Nama_Berkas || 'Dokumen').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf` });
       }
     }
+
+    archive.append(manifestLines.join('\n'), { name: 'MANIFEST_ARSIP_SIOMAS.txt' });
+
+    await recordAuditLog({
+      userId: req.user.ID,
+      aksi: 'DOWNLOAD_ZIP_BUNDLE',
+      modul: 'documents',
+      recordId: null,
+      before: null,
+      after: { kategori: kategori || 'Semua', total_files: docs.length, zip_name: zipName },
+      summary: `Mengunduh bundel ZIP arsip (${kategori || 'Semua'}): ${docs.length} berkas`,
+      req
+    });
 
     await archive.finalize();
   } catch (err) {
@@ -393,16 +603,20 @@ router.get(['/api/v1/documents/:id/download', '/api/documents/:id/download'], re
     if (req.user.Role === 'Anggota' && doc.Status !== 'Approved') {
       return res.status(403).json({ status: 'error', message: 'Anggota hanya dapat mengunduh dokumen yang sudah divalidasi.' });
     }
-    const fullPath = path.join(UPLOAD_DIR, path.basename(doc.Path_File || ''));
-    const ext = path.extname(doc.Path_File || '') || '.pdf';
-    const downloadName = `${(doc.Nama_Berkas || 'Dokumen').replace(/[^a-zA-Z0-9_.-]/g, '_')}${ext}`;
 
-    if (fs.existsSync(fullPath)) {
-      return res.download(fullPath, downloadName);
+    const resolvedPath = resolveDocumentFilePath(doc.Path_File);
+    if (resolvedPath) {
+      const ext = path.extname(resolvedPath) || '.pdf';
+      const baseClean = (doc.Nama_Berkas || 'Dokumen').replace(/[^a-zA-Z0-9_.-]/g, '_').replace(/\.(pdf|docx|doc|zip)$/i, '');
+      const downloadName = `${baseClean}${ext}`;
+      return res.download(resolvedPath, downloadName);
     }
+
+    const baseClean = (doc.Nama_Berkas || 'Dokumen').replace(/[^a-zA-Z0-9_.-]/g, '_').replace(/\.(pdf|docx|doc|zip)$/i, '');
+    const pdfDownloadName = `${baseClean}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
-    return res.send(Buffer.from(`%PDF-1.4\n% Dokumen SIOMAS: ${doc.Nama_Berkas}\n`));
+    res.setHeader('Content-Disposition', `attachment; filename="${pdfDownloadName}"`);
+    return res.send(buildValidPdfBuffer(doc));
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }

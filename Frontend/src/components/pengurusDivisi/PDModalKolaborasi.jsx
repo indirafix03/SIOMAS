@@ -23,9 +23,15 @@ export default function PDModalKolaborasi({ onClose, onSubmit, showToast }) {
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const ext = file.name.includes('.') ? `.${file.name.split('.').pop().toLowerCase()}` : '';
+    if (ext !== '.pdf') {
+      e.target.value = '';
+      showToast && showToast(`Format lampiran "${file.name}" ditolak! Pengurus hanya diizinkan mengunggah dokumen PDF (.pdf).`, 'error');
+      return;
+    }
     setProposalFileObj(file);
     setFormData(prev => ({ ...prev, fileName: `${file.name} (${(file.size / 1024).toFixed(1)} KB)` }));
-    showToast && showToast(`Berkas "${file.name}" berhasil dipilih.`, 'success');
+    showToast && showToast(`Berkas PDF "${file.name}" berhasil dipilih.`, 'success');
   };
 
   const handleSubmit = async (e) => {
@@ -149,7 +155,7 @@ export default function PDModalKolaborasi({ onClose, onSubmit, showToast }) {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf,.doc,.docx"
+              accept=".pdf"
               style={{ display: 'none' }}
               onChange={handleFileChange}
             />
@@ -163,7 +169,7 @@ export default function PDModalKolaborasi({ onClose, onSubmit, showToast }) {
                 <div className="dropzone-text">
                   <h5>Lampirkan proposal kerja sama</h5>
                   <p style={{ color: formData.fileName ? '#4F46E5' : undefined, fontWeight: formData.fileName ? 600 : undefined }}>
-                    {formData.fileName || 'PDF atau DOCX • Maksimal 10 MB'}
+                    {formData.fileName || 'Khusus Format PDF (.pdf) • Maksimal 10 MB'}
                   </p>
                 </div>
               </div>

@@ -174,13 +174,19 @@ function ModalUnggahDokumen({ initialLabel = 'Sipakamase', onClose, onUploaded, 
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.zip"
+              accept=".pdf"
               style={{ display: 'none' }}
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) {
+                  const ext = f.name.includes('.') ? `.${f.name.split('.').pop().toLowerCase()}` : '';
+                  if (ext !== '.pdf') {
+                    e.target.value = '';
+                    showToast(`Format berkas "${f.name}" ditolak! Pengurus Divisi hanya diizinkan mengunggah berkas PDF (.pdf).`, 'error');
+                    return;
+                  }
                   setForm({ ...form, file: f, fileName: f.name });
-                  showToast(`Berkas "${f.name}" dipilih.`, 'success');
+                  showToast(`Berkas PDF "${f.name}" dipilih.`, 'success');
                 }
               }}
             />
@@ -198,7 +204,7 @@ function ModalUnggahDokumen({ initialLabel = 'Sipakamase', onClose, onUploaded, 
               ) : (
                 <>
                   <p style={{ fontWeight: 600, color: '#0F172A', marginBottom: '4px' }}>Klik untuk pilih berkas dari perangkat</p>
-                  <p style={{ fontSize: '12px', color: '#94A3B8' }}>Format PDF atau DOCX • Maksimal 10 MB</p>
+                  <p style={{ fontSize: '12px', color: '#94A3B8' }}>Khusus Format PDF (.pdf) • Maksimal 10 MB</p>
                 </>
               )}
             </div>

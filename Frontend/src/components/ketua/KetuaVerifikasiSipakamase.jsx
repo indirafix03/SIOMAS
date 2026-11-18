@@ -2,41 +2,96 @@ import React, { useState, useEffect } from 'react';
 import { FileText, Download, X, Check } from 'lucide-react';
 import { sipakamaseApi, documentsApi } from '../../services/api.js';
 
-// Modal: Minta Perbaikan Sipakamase
-function ModalMintaPerbaikan({ selected, onClose, onSubmit }) {
-  const [jenis, setJenis] = useState('Dokumen belum lengkap');
+// Modal: Minta Perbaikan Sipakamase (dengan Checkbox Multi-Poin Revisi)
+const SIPAKAMASE_REVISI_POINTS = [
+  'Kelengkapan Berkas Administrasi Sipakamase',
+  'Tanda Tangan Pejabat / Ketua & Stempel Resmi',
+  'Kesesuaian Rekapitulasi Data Keuangan & Bukti Nota',
+  'Surat Pengantar & Identitas Organisasi',
+  'Format Bundel Dokumen & Urutan Lampiran',
+  'Dokumentasi & Daftar Hadir Kegiatan'
+];
+
+function ModalMintaPerbaikan({ selected, onClose, onSubmit, showToast }) {
+  const [selectedPoints, setSelectedPoints] = useState(['Kelengkapan Berkas Administrasi Sipakamase']);
   const [catatan, setCatatan] = useState('');
 
+  const togglePoint = (pt) => {
+    setSelectedPoints((prev) =>
+      prev.includes(pt) ? prev.filter((item) => item !== pt) : [...prev, pt]
+    );
+  };
+
+  const handleConfirm = () => {
+    if (selectedPoints.length === 0) {
+      showToast && showToast('Pilih minimal satu poin temuan perbaikan Sipakamase.', 'warning');
+      return;
+    }
+    onSubmit({ jenis: selectedPoints.join(', '), selectedPoints, catatan });
+    onClose();
+  };
+
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '480px', padding: '28px', boxShadow: '0 24px 60px -12px rgba(0,0,0,0.2)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}>
+      <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '520px', padding: '28px', boxShadow: '0 24px 60px -12px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '18px' }}>
           <div>
             <h2 style={{ fontSize: '18px', fontWeight: 700 }}>Minta Perbaikan Sipakamase</h2>
-            <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>Catatan akan dikirim kepada bendahara dan sekretariat.</p>
+            <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>Centang poin-poin temuan yang perlu diperbaiki oleh pengurus.</p>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}><X size={20} /></button>
         </div>
 
-        <div className="form-group" style={{ marginBottom: '14px' }}>
-          <label className="form-label">Jenis temuan</label>
-          <select className="form-select" value={jenis} onChange={e => setJenis(e.target.value)}>
-            <option>Dokumen belum lengkap</option>
-            <option>Tanda tangan kurang</option>
-            <option>Data keuangan tidak sesuai</option>
-            <option>Format tidak valid</option>
-          </select>
+        <div className="form-group" style={{ marginBottom: '16px' }}>
+          <label className="form-label" style={{ marginBottom: '8px', display: 'block' }}>
+            Poin Temuan yang Perlu Diperbaiki <span style={{ color: '#EF4444' }}>*</span>
+          </label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: '#F8FAFC', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+            {SIPAKAMASE_REVISI_POINTS.map((pt) => {
+              const isChecked = selectedPoints.includes(pt);
+              return (
+                <label
+                  key={pt}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: isChecked ? 600 : 500,
+                    color: isChecked ? '#0F172A' : '#475569',
+                    padding: '4px 2px'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => togglePoint(pt)}
+                    style={{ width: '16px', height: '16px', accentColor: '#4F46E5', cursor: 'pointer' }}
+                  />
+                  <span>{pt}</span>
+                </label>
+              );
+            })}
+          </div>
         </div>
 
         <div className="form-group" style={{ marginBottom: '24px' }}>
-          <label className="form-label">Catatan Perbaikan</label>
-          <textarea className="form-input" rows={4} placeholder="Jelaskan bagian yang perlu diperbaiki secara rinci..." value={catatan} onChange={e => setCatatan(e.target.value)} style={{ resize: 'none' }} />
+          <label className="form-label">Catatan Perbaikan Tambahan</label>
+          <textarea
+            className="form-input"
+            rows={4}
+            placeholder="Jelaskan bagian yang perlu diperbaiki secara rinci..."
+            value={catatan}
+            onChange={e => setCatatan(e.target.value)}
+            style={{ resize: 'none' }}
+          />
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
           <button onClick={onClose} className="btn-secondary" style={{ width: 'auto', padding: '10px 20px' }}>Batal</button>
-          <button className="btn-primary" style={{ width: 'auto', margin: 0 }} onClick={() => { onSubmit({ jenis, catatan }); onClose(); }}>
-            Kirim Catatan Perbaikan
+          <button className="btn-primary" style={{ width: 'auto', margin: 0 }} onClick={handleConfirm}>
+            Kirim Catatan Perbaikan ({selectedPoints.length} Poin)
           </button>
         </div>
       </div>
@@ -87,7 +142,8 @@ export default function KetuaVerifikasiSipakamase({ showToast }) {
         <ModalMintaPerbaikan
           selected={selected}
           onClose={() => setShowPerbaikan(false)}
-          onSubmit={({ jenis, catatan }) => handleVerify('Revisi', `[${jenis}] ${catatan}`)}
+          onSubmit={({ jenis, catatan }) => handleVerify('Revisi', `[${jenis}] ${catatan || 'Mohon diperbaiki sesuai pedoman.'}`)}
+          showToast={showToast}
         />
       )}
 

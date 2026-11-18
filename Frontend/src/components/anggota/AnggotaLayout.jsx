@@ -11,6 +11,7 @@ import {
   Menu,
   X
 } from 'lucide-react';
+import NotificationBellPopup from '../NotificationBellPopup.jsx';
 
 export default function AnggotaLayout({
   activeView,
@@ -170,15 +171,11 @@ export default function AnggotaLayout({
               <span className="value">{currentUser?.role || 'Anggota'}</span>
             </div>
 
-            <button 
-              type="button" 
-              className="portal-notif-btn" 
-              title="Notifikasi Pengumuman"
-              onClick={() => onNavigate('dashboard')}
-            >
-              <Bell size={18} />
-              {unreadCount > 0 && <span className="portal-notif-dot" />}
-            </button>
+            <NotificationBellPopup
+              currentUser={currentUser}
+              activeView={activeView}
+              onNavigate={onNavigate}
+            />
 
             <div
               className="portal-user-chip"

@@ -15,6 +15,7 @@ import {
   X
 } from 'lucide-react';
 import { lpjApi } from '../../services/api.js';
+import NotificationBellPopup from '../NotificationBellPopup.jsx';
 
 export default function PDLayout({
   activeView,
@@ -211,15 +212,11 @@ export default function PDLayout({
               <span className="value">Pengurus Divisi</span>
             </div>
 
-            <button
-              type="button"
-              className="portal-notif-btn"
-              title="Notifikasi"
-              onClick={() => onNavigate('pd-dashboard')}
-            >
-              <Bell size={18} />
-              {unreadCount > 0 && <span className="portal-notif-dot" />}
-            </button>
+            <NotificationBellPopup
+              currentUser={currentUser}
+              activeView={activeView}
+              onNavigate={onNavigate}
+            />
 
             <div
               className="portal-user-chip"

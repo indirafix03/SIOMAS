@@ -10,6 +10,7 @@ export default function PDHubInter({ onNavigate, onSelectPost, showToast }) {
   const [showFormPublikasi, setShowFormPublikasi] = useState(false);
   const [showModalKolaborasi, setShowModalKolaborasi] = useState(false);
   const [posts, setPosts] = useState([]);
+  const [mySubmissions, setMySubmissions] = useState([]);
   const [agendaBersama, setAgendaBersama] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,9 +24,18 @@ export default function PDHubInter({ onNavigate, onSelectPost, showToast }) {
 
     const feedList = feedRes.ok && feedRes.data?.data ? feedRes.data.data : [];
     const myList = myRes.ok && myRes.data?.data ? myRes.data.data : [];
-    const mergedMap = new Map();
-    [...myList, ...feedList].forEach(item => mergedMap.set(item.id, parseInterUkmPost(item)));
-    setPosts(Array.from(mergedMap.values()));
+
+    // Feed publik HANYA menampilkan yang sudah Disetujui / Approved (tidak pernah menampilkan Ditolak / Pending)
+    const publishedPosts = feedList
+      .map(parseInterUkmPost)
+      .filter(p => p.isPublished && !p.isRejected);
+    setPosts(publishedPosts);
+
+    // Pengajuan milik pengurus yang masih Pending atau Ditolak ditampilkan terpisah sebagai informasi status
+    const unpublishedMine = myList
+      .map(parseInterUkmPost)
+      .filter(p => !p.isPublished || p.isRejected);
+    setMySubmissions(unpublishedMine);
 
     const schedList = schedRes.ok && schedRes.data?.data ? schedRes.data.data : [];
     const clsList = ['blue', 'green', ''];
@@ -103,6 +113,53 @@ export default function PDHubInter({ onNavigate, onSelectPost, showToast }) {
       <div className="hub-layout-grid">
         {/* Left: Feed */}
         <div className="hub-feed-column">
+          {mySubmissions.length > 0 && (
+            <div className="portal-card" style={{ padding: '16px 20px', marginBottom: '16px', background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+              <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0F172A', marginBottom: '10px' }}>
+                Status Pengajuan Kolaborasi Divisi Saya ({mySubmissions.length})
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {mySubmissions.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '10px 14px',
+                      background: '#FFFFFF',
+                      borderRadius: '10px',
+                      border: `1px solid ${item.isRejected ? '#FECACA' : '#FDE68A'}`,
+                      gap: '12px',
+                      flexWrap: 'wrap'
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>{item.judul}</div>
+                      <div style={{ fontSize: '12px', color: '#64748B' }}>
+                        {item.isRejected
+                          ? 'Ditolak oleh Ketua/Admin — Tidak dipublikasikan ke Hub'
+                          : 'Menunggu verifikasi Ketua UKM sebelum dipublikasikan'}
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: '11.5px',
+                        fontWeight: 700,
+                        padding: '4px 10px',
+                        borderRadius: '999px',
+                        background: item.isRejected ? '#FEE2E2' : '#FEF3C7',
+                        color: item.isRejected ? '#DC2626' : '#D97706'
+                      }}
+                    >
+                      {item.isRejected ? 'Ditolak' : 'Menunggu Persetujuan'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
             <div>
               <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', margin: 0 }}>Aktivitas Terbaru</h3>

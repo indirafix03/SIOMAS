@@ -12,15 +12,14 @@ build/
 *.egg-info/
 uploads/*
 !uploads/.gitkeep
-Backend/uploads/*
-!Backend/uploads/.gitkeep
 .env
-Backend/.env
 
 # Node & Frontend & Backend-Express
 node_modules/
 Frontend/node_modules/
 Backend-Express/node_modules/
+Backend-Express/uploads/*
+!Backend-Express/uploads/.gitkeep
 Frontend/dist/
 .npm
 *.log

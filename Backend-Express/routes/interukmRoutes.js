@@ -1,9 +1,19 @@
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
 const router = express.Router();
 const { pool } = require('../config/database');
 const { upload } = require('../config/upload');
 const { getUkmFromJobDesc, recordAuditLog } = require('../utils/helpers');
 const { requireAuth, requireRole } = require('../middlewares/authMiddleware');
+
+function removeTempFile(f) {
+  if (f && f.path && fs.existsSync(f.path)) {
+    try {
+      fs.unlinkSync(f.path);
+    } catch (_) {}
+  }
+}
 
 const postInterestsMemory = new Map(); // postId -> Set(userId)
 
@@ -31,7 +41,7 @@ router.get(['/api/v1/interukm/feed', '/api/interukm-posts'], requireAuth, async 
       `SELECT p.*, u."Nama" AS creator_name
        FROM interukm_posts p
        LEFT JOIN users u ON p."Created_By" = u."ID"
-       WHERE p."Status_Persetujuan" = 'Disetujui'
+       WHERE p."Status_Persetujuan" IN ('Disetujui', 'Approved')
        ORDER BY p."ID" DESC`
     );
     res.json({ status: 'success', data: rows.map(r => formatInterUkmPost(r, req.user.ID)) });
@@ -109,6 +119,37 @@ router.post(
       const { ukm_pengirim, judul, isi_pengumuman } = req.body || {};
       if (!judul || !isi_pengumuman) {
         return res.status(400).json({ status: 'error', message: 'Judul dan isi pengumuman wajib diisi.' });
+      }
+
+      const fotoFile = req.files?.foto?.[0];
+      const proposalFile = req.files?.proposal?.[0];
+
+      if (fotoFile) {
+        const fotoExt = path.extname(fotoFile.originalname || fotoFile.filename || '').toLowerCase();
+        if (!['.jpg', '.jpeg', '.png', '.webp'].includes(fotoExt)) {
+          removeTempFile(fotoFile);
+          removeTempFile(proposalFile);
+          return res.status(400).json({
+            status: 'error',
+            message: `Format poster/banner (${fotoExt}) ditolak. Hanya gambar (.jpg, .jpeg, .png, .webp) yang diperbolehkan.`
+          });
+        }
+      }
+
+      if (proposalFile) {
+        const propExt = path.extname(proposalFile.originalname || proposalFile.filename || '').toLowerCase();
+        const isKetuaOrAdmin = req.user.Role === 'Ketua' || req.user.Role === 'Admin';
+        const allowedPropExts = isKetuaOrAdmin ? ['.pdf', '.zip'] : ['.pdf'];
+        if (!allowedPropExts.includes(propExt)) {
+          removeTempFile(fotoFile);
+          removeTempFile(proposalFile);
+          return res.status(400).json({
+            status: 'error',
+            message: isKetuaOrAdmin
+              ? `Format lampiran (${propExt}) tidak didukung. Hanya berkas .pdf atau .zip yang diperbolehkan.`
+              : `Format lampiran (${propExt}) ditolak. Pengurus/Anggota hanya diizinkan mengunggah dokumen berformat PDF (.pdf).`
+          });
+        }
       }
 
       const extraParts = [];

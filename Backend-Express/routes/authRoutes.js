@@ -66,6 +66,12 @@ router.post(['/api/v1/auth/login', '/api/auth/login', '/api/login'], async (req,
     }
 
     const user = rows[0];
+    if (user.Status_Keanggotaan === 'Menunggu Verifikasi') {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Akun Anda masih dalam status Menunggu Verifikasi oleh Ketua/Admin UKM.'
+      });
+    }
     if (!user.Password_Hash.startsWith('$2')) {
       const newBcrypt = hashPassword(password);
       await pool.query('UPDATE users SET "Password_Hash" = $1 WHERE "ID" = $2', [newBcrypt, user.ID]);

@@ -204,11 +204,25 @@ export const documentsApi = {
       headers: token ? { 'Authorization': `Bearer ${token}` } : {}
     });
     if (!res.ok) return false;
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const contentType = res.headers.get('Content-Type') || '';
+    let finalName = fallbackName;
+    const match = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';\n]+)["']?/i);
+    if (match && match[1]) {
+      finalName = decodeURIComponent(match[1].trim());
+    } else {
+      const hasKnownExt = /\.(pdf|zip|docx|doc|png|jpg|jpeg)$/i.test(fallbackName);
+      if (!hasKnownExt) {
+        if (contentType.includes('zip')) finalName = `${fallbackName}.zip`;
+        else if (contentType.includes('word') || contentType.includes('officedocument')) finalName = `${fallbackName}.docx`;
+        else finalName = `${fallbackName}.pdf`;
+      }
+    }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = fallbackName.toLowerCase().endsWith('.pdf') ? fallbackName : `${fallbackName}.pdf`;
+    a.download = finalName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -312,6 +326,7 @@ export const sipakamaseApi = {
 // Inter-UKM API Calls (UC-11)
 export const parseInterUkmPost = (item) => {
   const isPending = item.status_persetujuan === 'Pending' || item.status_persetujuan === 'Menunggu Verifikasi';
+  const isRejected = item.status_persetujuan === 'Ditolak' || item.status_persetujuan === 'Rejected';
   const dateStr = item.date
     ? new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
     : 'Baru saja';
@@ -381,14 +396,14 @@ export const parseInterUkmPost = (item) => {
     orgInitial: initials,
     orgCode: initials,
     orgBadgeClass: 'org-blue',
-    orgColor: isPending ? '#F59E0B' : '#4F46E5',
+    orgColor: isRejected ? '#DC2626' : isPending ? '#F59E0B' : '#4F46E5',
     orgType: 'Organisasi mahasiswa kampus',
     waktu: dateStr,
     timeAgo: dateStr,
-    kategori: isPending ? 'Menunggu Verifikasi' : 'Kolaborasi',
-    category: isPending ? 'Menunggu Verifikasi' : 'Kolaborasi',
-    tagClass: isPending ? 'tag-gray' : 'tag-purple',
-    kategoriColor: '#4F46E5',
+    kategori: isRejected ? 'Ditolak' : isPending ? 'Menunggu Verifikasi' : 'Kolaborasi',
+    category: isRejected ? 'Ditolak' : isPending ? 'Menunggu Verifikasi' : 'Kolaborasi',
+    tagClass: isRejected ? 'tag-gray' : isPending ? 'tag-gray' : 'tag-purple',
+    kategoriColor: isRejected ? '#DC2626' : '#4F46E5',
     judul: item.judul,
     headline: item.judul,
     konten: item.judul,
@@ -401,8 +416,10 @@ export const parseInterUkmPost = (item) => {
     tertarik: item.interest_count || 0,
     likes: item.interest_count || 0,
     isLiked: Boolean(item.is_interested),
-    status: isPending ? 'pending' : 'approved',
-    isPublished: !isPending,
+    status: isRejected ? 'rejected' : isPending ? 'pending' : 'approved',
+    status_persetujuan: item.status_persetujuan,
+    isRejected,
+    isPublished: !isPending && !isRejected,
     contactName: contactPerson,
     contactPerson: contactPerson,
     contactRole: rawOrg,
@@ -482,6 +499,17 @@ export const interUkmApi = {
 
 // Notifications / Email Logs API Calls (UC-12)
 export const notificationsApi = {
+  getInApp: async () => {
+    return apiFetch('/notifications/in-app');
+  },
+
+  createDelegation: async (payload) => {
+    return apiFetch('/notifications/delegation', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
   getEmailLogs: async () => {
     return apiFetch('/notifications/email/logs');
   },

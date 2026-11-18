@@ -2,39 +2,86 @@ import React, { useState, useEffect } from 'react';
 import { FileText, X, Check } from 'lucide-react';
 import { lpjApi, documentsApi } from '../../services/api.js';
 
-// Modal: Minta Revisi LPJ
-function ModalMintaRevisi({ doc, onClose, onSubmit }) {
-  const [bagian, setBagian] = useState('Kelengkapan administrasi');
+// Modal: Minta Revisi LPJ (dengan Checkbox Multi-Poin Revisi)
+const REVISI_POINTS = [
+  'Halaman Sampul & Identitas Kegiatan',
+  'Latar Belakang & Tujuan Kegiatan',
+  'Rincian Anggaran Biaya (RAB) & Realisasi',
+  'Bukti Nota / Kwitansi Pembayaran',
+  'Dokumentasi Kegiatan & Daftar Hadir',
+  'Format Penulisan, Tanda Tangan & Stempel'
+];
+
+function ModalMintaRevisi({ doc, onClose, onSubmit, showToast }) {
+  const [selectedPoints, setSelectedPoints] = useState(['Format Penulisan, Tanda Tangan & Stempel']);
   const [catatan, setCatatan] = useState('');
 
+  const togglePoint = (pt) => {
+    setSelectedPoints((prev) =>
+      prev.includes(pt) ? prev.filter((item) => item !== pt) : [...prev, pt]
+    );
+  };
+
+  const handleConfirm = () => {
+    if (selectedPoints.length === 0) {
+      showToast && showToast('Pilih minimal satu poin bagian yang perlu direvisi.', 'warning');
+      return;
+    }
+    onSubmit({ bagian: selectedPoints.join(', '), selectedPoints, catatan });
+    onClose();
+  };
+
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '480px', padding: '28px', boxShadow: '0 24px 60px -12px rgba(0,0,0,0.2)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}>
+      <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '520px', padding: '28px', boxShadow: '0 24px 60px -12px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '18px' }}>
           <div>
             <h2 style={{ fontSize: '18px', fontWeight: 700 }}>Minta Revisi LPJ</h2>
-            <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>Catatan akan dikirim kepada koordinator divisi.</p>
+            <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>Centang poin-poin yang perlu diperbaiki oleh koordinator divisi.</p>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}><X size={20} /></button>
         </div>
 
         <div className="form-group" style={{ marginBottom: '16px' }}>
-          <label className="form-label">Bagian yang perlu direvisi</label>
-          <select className="form-select" value={bagian} onChange={e => setBagian(e.target.value)}>
-            <option>Kelengkapan administrasi</option>
-            <option>Tanda tangan dan stempel</option>
-            <option>Laporan keuangan</option>
-            <option>Deskripsi kegiatan</option>
-            <option>Lampiran dokumentasi</option>
-          </select>
+          <label className="form-label" style={{ marginBottom: '8px', display: 'block' }}>
+            Poin Bagian yang Perlu Direvisi <span style={{ color: '#EF4444' }}>*</span>
+          </label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: '#F8FAFC', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+            {REVISI_POINTS.map((pt) => {
+              const isChecked = selectedPoints.includes(pt);
+              return (
+                <label
+                  key={pt}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: isChecked ? 600 : 500,
+                    color: isChecked ? '#0F172A' : '#475569',
+                    padding: '4px 2px'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => togglePoint(pt)}
+                    style={{ width: '16px', height: '16px', accentColor: '#4F46E5', cursor: 'pointer' }}
+                  />
+                  <span>{pt}</span>
+                </label>
+              );
+            })}
+          </div>
         </div>
 
         <div className="form-group" style={{ marginBottom: '24px' }}>
-          <label className="form-label">Catatan Revisi</label>
+          <label className="form-label">Catatan Revisi Tambahan</label>
           <textarea
             className="form-input"
             rows={4}
-            placeholder="Jelaskan perubahan yang perlu dilakukan..."
+            placeholder="Jelaskan detail perbaikan yang perlu dilakukan pada poin yang dicentang..."
             value={catatan}
             onChange={e => setCatatan(e.target.value)}
             style={{ resize: 'none' }}
@@ -43,8 +90,8 @@ function ModalMintaRevisi({ doc, onClose, onSubmit }) {
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
           <button onClick={onClose} className="btn-secondary" style={{ width: 'auto', padding: '10px 20px' }}>Batal</button>
-          <button className="btn-primary" style={{ width: 'auto', margin: 0 }} onClick={() => { onSubmit({ bagian, catatan }); onClose(); }}>
-            Kirim Catatan Revisi
+          <button className="btn-primary" style={{ width: 'auto', margin: 0 }} onClick={handleConfirm}>
+            Kirim Catatan Revisi ({selectedPoints.length} Poin)
           </button>
         </div>
       </div>
@@ -129,6 +176,7 @@ export default function KetuaValidasiLPJ({ showToast }) {
           doc={selectedDoc}
           onClose={() => setShowRevisiModal(false)}
           onSubmit={handleRevisiSubmit}
+          showToast={showToast}
         />
       )}
 

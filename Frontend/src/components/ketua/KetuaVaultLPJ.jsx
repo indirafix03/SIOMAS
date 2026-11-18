@@ -171,11 +171,19 @@ function ModalUnggah({ onClose, onUploaded, showToast }) {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,.doc,.docx,.xls,.xlsx,.zip"
+            accept=".pdf,.zip"
             style={{ display: 'none' }}
             onChange={e => {
               const f = e.target.files?.[0];
-              if (f) setForm({ ...form, file: f, fileName: f.name });
+              if (f) {
+                const ext = f.name.includes('.') ? `.${f.name.split('.').pop().toLowerCase()}` : '';
+                if (!['.pdf', '.zip'].includes(ext)) {
+                  e.target.value = '';
+                  showToast && showToast(`Format berkas "${f.name}" tidak didukung. Ketua/Admin hanya dapat mengunggah .pdf atau .zip.`, 'error');
+                  return;
+                }
+                setForm({ ...form, file: f, fileName: f.name });
+              }
             }}
           />
 
@@ -187,7 +195,7 @@ function ModalUnggah({ onClose, onUploaded, showToast }) {
             {form.fileName ? (
               <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#10B981' }}>{form.fileName} ✓</div>
             ) : (
-              <div style={{ fontSize: '13px', color: '#64748B' }}>Klik untuk pilih berkas (.pdf / .docx / .zip)</div>
+              <div style={{ fontSize: '13px', color: '#64748B' }}>Klik untuk pilih berkas (.pdf atau .zip)</div>
             )}
           </div>
 
